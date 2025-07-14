@@ -1,13 +1,13 @@
 export {
-  QueueContainer,
-  WorkerContainer,
+  type QueueContainer,
+  type WorkerContainer,
   createWorker,
   WorkerRegistry,
 } from "./worker";
 export { ControllerRegistry, createController } from "./controller";
 export {
-  InferService,
-  ServiceContainer,
+  type InferService,
+  type ServiceContainer,
   ServiceRegistry,
   createService,
 } from "./service";

@@ -88,32 +88,54 @@ export class WorkerRegistry {
       typeof workerCtx.processor === "function"
         ? async (job, token) => {
             if (typeof workerCtx.processor !== "function")
-              throw new Error("Something went wrong!");
+              throw new Error(
+                "Processor was not a function but was expected to be one."
+              );
 
-            return workerCtx.processor(
-              job,
-              {
-                services: this.serviceRegistry.resolve(),
-                workers: {
-                  get: this.getWorker.bind(this),
+            try {
+              const result = await workerCtx.processor(
+                job,
+                {
+                  services: this.serviceRegistry.resolve(),
+                  workers: {
+                    get: this.getWorker.bind(this),
+                  },
+                  queues: {
+                    get: this.getQueue.bind(this),
+                  },
                 },
-                queues: {
-                  get: this.getQueue.bind(this),
-                },
-              },
-              token
-            );
+                token
+              );
+              return result;
+            } catch (e) {
+              console.error(`Error in processor ${workerCtx.queueName}`, e);
+              throw e;
+            }
           }
         : workerCtx.processor,
       { ...workerCtx.options, connection: workerCtx.connection }
     );
 
     for (const onHandler of workerCtx.onHandlers) {
-      worker.on(...onHandler);
+      worker.on(onHandler[0], async (...args: any[]) => {
+        try {
+          // @ts-expect-error wrong type
+          return await onHandler[1](...args);
+        } catch (e) {
+          console.error(`Error in worker on "${onHandler[0]}" handler.`, e);
+        }
+      });
     }
 
     for (const onceHandler of workerCtx.onceHandlers) {
-      worker.once(...onceHandler);
+      worker.once(onceHandler[0], async (...args: any[]) => {
+        try {
+          // @ts-expect-error wrong type
+          return await onceHandler[1](...args);
+        } catch (e) {
+          console.error(`Error in worker once "${onceHandler[0]}" handler.`, e);
+        }
+      });
     }
 
     this.workers.set(workerCtx.queueName, worker);
@@ -148,7 +170,10 @@ export interface WorkerC<
   queue: (
     queueName: string,
     queueOptions?: QueueOptions
-  ) => Pick<WorkerC<Omitter | "queue" | "processor", J, SJ>, "sandboxedJob" | "job">;
+  ) => Pick<
+    WorkerC<Omitter | "queue" | "processor", J, SJ>,
+    "sandboxedJob" | "job"
+  >;
   job<NewJob extends Job<any, any, any>>(): Omit<
     WorkerC<Omitter | "job" | "sandboxedJob", NewJob, SJ>,
     Omitter | "job" | "sandboxedJob"
@@ -205,26 +230,26 @@ export interface WorkerC<
         }
       ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
     : never;
-  on: J extends Job<any, any, any>
-    ? <Key extends keyof WorkerListener<J>>(
+  on: J extends Job<infer T, infer R, infer N>
+    ? <Key extends keyof WorkerListener<T, R, N>>(
         event: Key,
-        listener: WorkerListener<J>[Key]
+        listener: WorkerListener<T, R, N>[Key]
       ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
     : SJ extends SandboxedJob<infer T, infer R>
-    ? <Key extends keyof WorkerListener<Job<T, R, string>>>(
+    ? <Key extends keyof WorkerListener<T, R, string>>(
         event: Key,
-        listener: WorkerListener<Job<T, R, string>>[Key]
+        listener: WorkerListener<T, R, string>[Key]
       ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
     : never;
-  once: J extends Job<any, any, any>
-    ? <Key extends keyof WorkerListener<J>>(
+  once: J extends Job<infer T, infer R, infer N>
+    ? <Key extends keyof WorkerListener<T, R, N>>(
         event: Key,
-        listener: WorkerListener<J>[Key]
+        listener: WorkerListener<T, R, N>[Key]
       ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
     : SJ extends SandboxedJob<infer T, infer R>
-    ? <Key extends keyof WorkerListener<Job<T, R, string>>>(
+    ? <Key extends keyof WorkerListener<T, R, string>>(
         event: Key,
-        listener: WorkerListener<Job<T, R, string>>[Key]
+        listener: WorkerListener<T, R, string>[Key]
       ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
     : never;
 }

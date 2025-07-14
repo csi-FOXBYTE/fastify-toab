@@ -1,9 +1,8 @@
-import { getContext } from "../../src/context";
 import {
   createService,
   InferService,
   ServiceContainer,
-} from "../../src/service";
+} from "../../src/index";
 import { getUserService } from "../user/user.service";
 
 const irrelevantService = createService("irrelevant", async ({ services }) => {

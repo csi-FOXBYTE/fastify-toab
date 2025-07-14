@@ -99,8 +99,8 @@ interface WorkerC<Omitter extends string, J extends Job<any, any, any> | null, S
         data?: T;
         opts?: JobSchedulerTemplateOptions;
     }) => Omit<WorkerC<Omitter, J, SJ>, Omitter> : never;
-    on: J extends Job<any, any, any> ? <Key extends keyof WorkerListener<J>>(event: Key, listener: WorkerListener<J>[Key]) => Omit<WorkerC<Omitter, J, SJ>, Omitter> : SJ extends SandboxedJob<infer T, infer R> ? <Key extends keyof WorkerListener<Job<T, R, string>>>(event: Key, listener: WorkerListener<Job<T, R, string>>[Key]) => Omit<WorkerC<Omitter, J, SJ>, Omitter> : never;
-    once: J extends Job<any, any, any> ? <Key extends keyof WorkerListener<J>>(event: Key, listener: WorkerListener<J>[Key]) => Omit<WorkerC<Omitter, J, SJ>, Omitter> : SJ extends SandboxedJob<infer T, infer R> ? <Key extends keyof WorkerListener<Job<T, R, string>>>(event: Key, listener: WorkerListener<Job<T, R, string>>[Key]) => Omit<WorkerC<Omitter, J, SJ>, Omitter> : never;
+    on: J extends Job<infer T, infer R, infer N> ? <Key extends keyof WorkerListener<T, R, N>>(event: Key, listener: WorkerListener<T, R, N>[Key]) => Omit<WorkerC<Omitter, J, SJ>, Omitter> : SJ extends SandboxedJob<infer T, infer R> ? <Key extends keyof WorkerListener<T, R, string>>(event: Key, listener: WorkerListener<T, R, string>[Key]) => Omit<WorkerC<Omitter, J, SJ>, Omitter> : never;
+    once: J extends Job<infer T, infer R, infer N> ? <Key extends keyof WorkerListener<T, R, N>>(event: Key, listener: WorkerListener<T, R, N>[Key]) => Omit<WorkerC<Omitter, J, SJ>, Omitter> : SJ extends SandboxedJob<infer T, infer R> ? <Key extends keyof WorkerListener<T, R, string>>(event: Key, listener: WorkerListener<T, R, string>[Key]) => Omit<WorkerC<Omitter, J, SJ>, Omitter> : never;
 }
 declare function createWorker<Omitter extends string = "">(): Pick<WorkerC<Omitter, null, null>, "queue">;
 
