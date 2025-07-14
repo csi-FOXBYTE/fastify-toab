@@ -1,0 +1,8 @@
+src
+.swcrc
+tsconfig.json
+rollup.config.mjs
+*.tgz
+tests
+tsup.config.ts
+fastify-modular.rc.schema.json

@@ -6,7 +6,7 @@
     "url": "https://github.com/tganzhorn/fastify-opinionated.git"
   },
   "bin": {
-    "fastify-modular": "./dist/templates/generate.js"
+    "fastify-toab": "./dist/generate.js"
   },
   "description": "Fastify Modular is a lightweight architectural layer for Fastify that introduces a clean, structured way to organize applications using controllers and services — inspired by frameworks like NestJS, but without the overhead.",
   "main": "dist/index.js",

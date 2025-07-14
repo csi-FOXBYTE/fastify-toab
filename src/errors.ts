@@ -1,4 +1,4 @@
-import fastify, { FastifyReply } from "fastify";
+import { FastifyReply } from "fastify";
 import { Type } from "@sinclair/typebox";
 
 type ErrorStatis =
@@ -20,7 +20,7 @@ const errorMap: Record<ErrorStatis, number> = {
 
 const fastifyModularErrorSymbol = Symbol.for("FastifyModularError");
 
-export class FastifyGenericRouteError<T> extends Error {
+export class GenericRouteError<T> extends Error {
   readonly [fastifyModularErrorSymbol] = true;
   readonly code: number;
   readonly payload?: T;
@@ -39,7 +39,7 @@ export class FastifyGenericRouteError<T> extends Error {
     message: string,
     payload?: T
   ) {
-    const fastifyError = new FastifyGenericRouteError(status, message, payload);
+    const fastifyError = new GenericRouteError(status, message, payload);
 
     fastifyError.stack = error.stack;
 
@@ -62,12 +62,10 @@ export class FastifyGenericRouteError<T> extends Error {
   }
 }
 
-export function isFastifyGenericError<T>(
+export function isGenericError<T>(
   error: unknown
-): error is FastifyGenericRouteError<T> {
-  return (
-    (error as FastifyGenericRouteError<T>)[fastifyModularErrorSymbol] === true
-  );
+): error is GenericRouteError<T> {
+  return (error as GenericRouteError<T>)[fastifyModularErrorSymbol] === true;
 }
 
 function createErrorResponseOpenAPI(description: string) {
@@ -75,17 +73,19 @@ function createErrorResponseOpenAPI(description: string) {
     {
       status: Type.String(),
       message: Type.String(),
-      payload: Type.Any(),
-      internal: Type.Object({
-        stack: Type.Optional(Type.String()),
-        cause: Type.Optional(Type.String()),
-      }),
+      payload: Type.Optional(Type.Any()),
+      internal: Type.Optional(
+        Type.Object({
+          stack: Type.Optional(Type.String()),
+          cause: Type.Optional(Type.String()),
+        })
+      ),
     },
     { description }
   );
 }
 
-export const fastifyErrorResponses = {
+export const fastifyGenericErrorResponses = {
   400: createErrorResponseOpenAPI("Bad request, input malformed."),
   401: createErrorResponseOpenAPI("Unauthorized"),
   403: createErrorResponseOpenAPI("Forbidden"),
@@ -93,19 +93,16 @@ export const fastifyErrorResponses = {
   500: createErrorResponseOpenAPI("Internal server error"),
 };
 
-export function handleFastifyError(e: unknown, reply: FastifyReply) {
-  if (isFastifyGenericError(e)) {
+export function handleRouteError(e: unknown, reply: FastifyReply) {
+  if (isGenericError(e)) {
     e.send(reply);
     return;
   }
   if (e instanceof Error) {
-    FastifyGenericRouteError.fromError(e, "INTERNAL_ERROR", e.message).send(
-      reply
-    );
+    GenericRouteError.fromError(e, "INTERNAL_ERROR", e.message).send(reply);
     return;
   }
-  new FastifyGenericRouteError(
-    "INTERNAL_ERROR",
-    "Unknown internal error!"
-  ).send(reply);
+  new GenericRouteError("INTERNAL_ERROR", "Unknown internal error!").send(
+    reply
+  );
 }

@@ -29,7 +29,14 @@ export type ControllerCtx = {
   rootPath: string;
   routes: Record<string, Record<string, RouteCtx>>;
   middlewares: ((
-    opts: { ctx: unknown; request: FastifyRequest; reply: FastifyReply },
+    opts: {
+      ctx: unknown;
+      request: FastifyRequest;
+      reply: FastifyReply;
+      services: ServiceContainer;
+      workers: WorkerContainer;
+      queues: QueueContainer;
+    },
     next: (opts: { ctx: unknown }) => Promise<void>
   ) => Promise<unknown>)[];
 };

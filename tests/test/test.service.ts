@@ -4,7 +4,7 @@ import {
   ServiceContainer,
 } from "../../src/index";
 import { getUserService } from "../user/user.service";
-import { getTest0Worker, getTest0WorkerQueue } from "./workers/test0.worker";
+import { getTest0WorkerQueue } from "./workers/test0.worker";
 
 const testService = createService(
   "test",

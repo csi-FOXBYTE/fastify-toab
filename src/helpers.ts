@@ -11,9 +11,13 @@ import {
   HandlerOpts,
   HTTPMethods,
 } from "./controller";
-import { ServiceRegistry } from "./service";
-import { WorkerRegistry } from "./worker";
-import { FastifyGenericRouteError, isFastifyGenericError } from "./errors";
+import { ServiceContainer, ServiceRegistry } from "./service";
+import { QueueContainer, WorkerContainer, WorkerRegistry } from "./worker";
+import {
+  fastifyGenericErrorResponses,
+  GenericRouteError,
+  isGenericError,
+} from "./errors";
 
 function handleRouteError(
   e: unknown,
@@ -22,19 +26,19 @@ function handleRouteError(
   reply: FastifyReply
 ) {
   fastify.log.error(e, `Error in ${composedPath}.`);
-  if (isFastifyGenericError(e)) {
+  if (isGenericError(e)) {
     e.send(reply);
     return;
   }
   if (e instanceof Error) {
-    FastifyGenericRouteError.fromError(
+    GenericRouteError.fromError(
       e,
       "INTERNAL_ERROR",
       "Unknown internal error."
     ).send(reply);
     return;
   }
-  new FastifyGenericRouteError("INTERNAL_ERROR", "Unknown internal error.", {
+  new GenericRouteError("INTERNAL_ERROR", "Unknown internal error.", {
     error: String(e),
   }).send(reply);
   return;
@@ -45,9 +49,12 @@ function composeMiddlewares(
 ): (
   ctx: unknown,
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
+  services: ServiceContainer,
+  workers: WorkerContainer,
+  queues: QueueContainer
 ) => Promise<unknown> {
-  return async (initialCtx, request, reply) => {
+  return async (initialCtx, request, reply, services, workers, queues) => {
     let index = -1;
     let finalCtx = initialCtx;
 
@@ -62,7 +69,7 @@ function composeMiddlewares(
       const fn = middlewares[i];
       if (!fn) return;
 
-      await fn({ ctx, request, reply }, (nextCtx) =>
+      await fn({ ctx, request, reply, queues, workers, services }, (nextCtx) =>
         dispatch(i + 1, nextCtx.ctx)
       );
     };
@@ -72,7 +79,7 @@ function composeMiddlewares(
   };
 }
 
-export const fastifyStructured: FastifyPluginAsync<{
+export const fastifyToab: FastifyPluginAsync<{
   getRegistries: () => Promise<{
     controllerRegistry: ControllerRegistry;
     serviceRegistry: ServiceRegistry;
@@ -105,16 +112,25 @@ export const fastifyStructured: FastifyPluginAsync<{
               response: route.output
                 ? {
                     200: route.output,
+                    ...fastifyGenericErrorResponses,
                   }
                 : {
                     204: {},
+                    ...fastifyGenericErrorResponses,
                   },
             },
           },
           async (request: FastifyRequest, reply: FastifyReply) => {
             try {
               setRequestContext({ request, reply });
-              const ctx = await middlewareChain({}, request, reply);
+              const ctx = await middlewareChain(
+                {},
+                request,
+                reply,
+                serviceRegistry.resolve(),
+                { get: workerRegistry.getWorker },
+                { get: workerRegistry.getQueue }
+              );
 
               const handlerOpts = await createHandlerOpts({
                 ctx,
