@@ -1,0 +1,299 @@
+import {
+  ConnectionOptions,
+  Job,
+  JobSchedulerTemplateOptions,
+  Queue,
+  QueueOptions,
+  RepeatOptions,
+  SandboxedJob,
+  Worker,
+  WorkerListener,
+  WorkerOptions,
+} from "bullmq";
+import { ServiceContainer, ServiceRegistry } from "./service";
+
+export interface WorkerContainer {
+  get: WorkerRegistry["getWorker"];
+}
+
+export interface QueueContainer {
+  get: WorkerRegistry["getQueue"];
+}
+
+export interface WorkerCtx<Q extends Queue, W extends Worker> {
+  queueName: string;
+  queueOptions?: QueueOptions;
+  jobSchedulers: Parameters<
+    WorkerC<"", Job<any, any, any>, null>["upsertJobScheduler"]
+  >[];
+  onHandlers: Parameters<WorkerC<"", Job<any, any, any>, null>["on"]>[];
+  onceHandlers: Parameters<WorkerC<"", Job<any, any, any>, null>["on"]>[];
+  isSandboxed: boolean;
+  connection: ConnectionOptions;
+  options?: WorkerOptions;
+  processor:
+    | string
+    | URL
+    | ((
+        job: Job<any, any, any>,
+        ctx: {
+          services: ReturnType<ServiceRegistry["resolve"]>;
+          workers: WorkerContainer;
+          queues: QueueContainer;
+        },
+        token?: string
+      ) => Promise<any>);
+  queue: Q; // only type
+  worker: W; // only type
+}
+
+export class WorkerRegistry {
+  private readonly queues = new Map<string, Queue>();
+  private readonly workers = new Map<string, Worker>();
+  private readonly serviceRegistry: ServiceRegistry;
+
+  constructor(serviceRegistry: ServiceRegistry) {
+    this.serviceRegistry = serviceRegistry;
+  }
+
+  async register<
+    Q extends Queue<any, any, any, any, any>,
+    W extends Worker<any, any, any>
+  >(workerCtx: WorkerCtx<Q, W>) {
+    if (this.queues.has(workerCtx.queueName)) {
+      throw new Error(
+        `Queue with name "${workerCtx.queueName}" is already registered.`
+      );
+    }
+
+    const queue = new Queue(workerCtx.queueName, {
+      ...workerCtx.queueOptions,
+      connection: workerCtx.connection,
+    });
+
+    this.queues.set(queue.name, queue);
+
+    for (const jobScheduler of workerCtx.jobSchedulers) {
+      await queue.upsertJobScheduler(...jobScheduler);
+    }
+
+    if (this.workers.has(workerCtx.queueName)) {
+      throw new Error(
+        `Queue with name "${workerCtx.queueName}" is already registered.`
+      );
+    }
+
+    const worker = new Worker(
+      workerCtx.queueName,
+      typeof workerCtx.processor === "function"
+        ? async (job, token) => {
+            if (typeof workerCtx.processor !== "function")
+              throw new Error("Something went wrong!");
+
+            return workerCtx.processor(
+              job,
+              {
+                services: this.serviceRegistry.resolve(),
+                workers: {
+                  get: this.getWorker.bind(this),
+                },
+                queues: {
+                  get: this.getQueue.bind(this),
+                },
+              },
+              token
+            );
+          }
+        : workerCtx.processor,
+      { ...workerCtx.options, connection: workerCtx.connection }
+    );
+
+    for (const onHandler of workerCtx.onHandlers) {
+      worker.on(...onHandler);
+    }
+
+    for (const onceHandler of workerCtx.onceHandlers) {
+      worker.once(...onceHandler);
+    }
+
+    this.workers.set(workerCtx.queueName, worker);
+  }
+
+  getQueue<Q extends Queue>(name: string) {
+    const queue = this.queues.get(name);
+
+    if (!queue) {
+      throw new Error(`No queue named "${name}" found.`);
+    }
+
+    return queue as Q;
+  }
+
+  getWorker<W extends Worker>(name: string) {
+    const worker = this.workers.get(name);
+
+    if (!worker) {
+      throw new Error(`No Worker named "${name}" found.`);
+    }
+
+    return worker as W;
+  }
+}
+
+export interface WorkerC<
+  Omitter extends string,
+  J extends Job<any, any, any> | null,
+  SJ extends SandboxedJob<any, any> | null
+> {
+  queue: (
+    queueName: string,
+    queueOptions?: QueueOptions
+  ) => Pick<WorkerC<Omitter | "queue" | "processor", J, SJ>, "sandboxedJob" | "job">;
+  job<NewJob extends Job<any, any, any>>(): Omit<
+    WorkerC<Omitter | "job" | "sandboxedJob", NewJob, SJ>,
+    Omitter | "job" | "sandboxedJob"
+  >;
+  sandboxedJob<NewSandboxedJob extends SandboxedJob<any, any>>(): Omit<
+    WorkerC<Omitter | "sandboxedJob" | "job", J, NewSandboxedJob>,
+    Omitter | "sandboxedJob" | "job"
+  >;
+  options: (
+    options: WorkerOptions
+  ) => Omit<WorkerC<Omitter | "options", J, SJ>, Omitter | "options">;
+  connection: (
+    connection: ConnectionOptions
+  ) => Pick<WorkerC<Omitter | "connection", J, SJ>, "processor">;
+  processor: J extends Job<infer T, infer R, infer N>
+    ? (
+        processor: (
+          job: Job<T, R, N>,
+          ctx: {
+            services: ServiceContainer;
+            workers: {
+              get: WorkerRegistry["getWorker"];
+            };
+            queues: {
+              get: WorkerRegistry["getQueue"];
+            };
+          },
+          token?: string
+        ) => Promise<R>
+      ) => WorkerCtx<Queue<T, R, N>, Worker<T, R, string>>
+    : SJ extends SandboxedJob<infer T, infer R>
+    ? (
+        url: string | URL
+      ) => WorkerCtx<Queue<T, R, string>, Worker<T, R, string>>
+    : never;
+  upsertJobScheduler: J extends Job<infer T, infer R, infer N>
+    ? (
+        jobSchedulerId: string,
+        repeatOpts: Omit<RepeatOptions, "key">,
+        jobTemplate?: {
+          name?: N;
+          data?: T;
+          opts?: JobSchedulerTemplateOptions;
+        }
+      ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
+    : SJ extends SandboxedJob<infer T>
+    ? (
+        jobSchedulerId: string,
+        repeatOpts: Omit<RepeatOptions, "key">,
+        jobTemplate?: {
+          name?: string;
+          data?: T;
+          opts?: JobSchedulerTemplateOptions;
+        }
+      ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
+    : never;
+  on: J extends Job<any, any, any>
+    ? <Key extends keyof WorkerListener<J>>(
+        event: Key,
+        listener: WorkerListener<J>[Key]
+      ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
+    : SJ extends SandboxedJob<infer T, infer R>
+    ? <Key extends keyof WorkerListener<Job<T, R, string>>>(
+        event: Key,
+        listener: WorkerListener<Job<T, R, string>>[Key]
+      ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
+    : never;
+  once: J extends Job<any, any, any>
+    ? <Key extends keyof WorkerListener<J>>(
+        event: Key,
+        listener: WorkerListener<J>[Key]
+      ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
+    : SJ extends SandboxedJob<infer T, infer R>
+    ? <Key extends keyof WorkerListener<Job<T, R, string>>>(
+        event: Key,
+        listener: WorkerListener<Job<T, R, string>>[Key]
+      ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
+    : never;
+}
+
+export function createWorker<Omitter extends string = "">(): Pick<
+  WorkerC<Omitter, null, null>,
+  "queue"
+> {
+  const ctx: WorkerCtx<any, any> = {
+    queueName: "",
+    jobSchedulers: [],
+    onceHandlers: [],
+    queue: null,
+    connection: {},
+    worker: null,
+    processor: "",
+    onHandlers: [],
+    isSandboxed: false,
+  };
+
+  const workerHandler: WorkerC<Omitter, Job<any, any, any>, null> = {
+    // @ts-expect-error wrong types
+    queue(queueName, queueOptions) {
+      ctx.queueOptions = queueOptions;
+      ctx.queueName = queueName;
+      return proxy;
+    },
+    connection(connection) {
+      ctx.connection = connection;
+      return proxy;
+    },
+    // @ts-expect-error wrong types
+    job() {
+      ctx.isSandboxed = false;
+      return proxy;
+    },
+    on(...args) {
+      ctx.onHandlers.push(args);
+      return proxy;
+    },
+    once(...args) {
+      ctx.onceHandlers.push(args);
+      return proxy;
+    },
+    // @ts-expect-error wrong types
+    options(options) {
+      ctx.options = options;
+      return proxy;
+    },
+    processor(processor) {
+      ctx.processor = processor;
+      return ctx;
+    },
+    // @ts-expect-error wrong types
+    sandboxedJob() {
+      ctx.isSandboxed = true;
+      return proxy;
+    },
+    upsertJobScheduler(...args) {
+      ctx.jobSchedulers.push(args);
+      return proxy;
+    },
+  };
+
+  const proxy = new Proxy(workerHandler, {
+    get(target, p, receiver) {
+      return Reflect.get(target, p, receiver);
+    },
+  });
+
+  return workerHandler;
+}

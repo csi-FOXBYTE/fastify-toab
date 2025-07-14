@@ -1,6 +1,8 @@
-import { Static, TObject, TSchema } from "@sinclair/typebox";
-import { FastifyReply, FastifyRequest, RouteShorthandOptions } from "fastify";
+import { FastifyReply, FastifyRequest } from "fastify";
+import { createMiddleware } from "./middleware";
+import { createRoute, RouteC, RouteCtx } from "./route";
 import { ServiceContainer, ServiceRegistry } from "./service";
+import { QueueContainer, WorkerContainer } from "./worker";
 
 export type HTTPMethods =
   | "SSE"
@@ -19,21 +21,14 @@ export type HandlerOpts = {
   querystring?: unknown;
   ctx: unknown;
   services: ServiceContainer;
-};
-
-export type RouteCtx = {
-  body?: TSchema;
-  output?: TSchema;
-  querystring?: TObject;
-  opts?: RouteShorthandOptions;
-  params?: TObject;
-  handler: (opts: HandlerOpts) => Promise<unknown>;
+  workers: WorkerContainer;
+  queues: QueueContainer;
 };
 
 export type ControllerCtx = {
   rootPath: string;
   routes: Record<string, Record<string, RouteCtx>>;
-  middleWares: ((
+  middlewares: ((
     opts: { ctx: unknown; request: FastifyRequest; reply: FastifyReply },
     next: (opts: { ctx: unknown }) => Promise<void>
   ) => Promise<unknown>)[];
@@ -47,10 +42,7 @@ interface ControllerC<Context extends Record<string, unknown>> {
     NewContext extends Record<string, unknown>,
     NextContext extends NewContext
   >(
-    fn: (
-      opts: { ctx: Context },
-      next: (opts: { ctx: NewContext }) => Promise<void>
-    ) => Promise<NextContext>
+    fn: ReturnType<typeof createMiddleware<NewContext, NextContext, Context>>
   ) => Pick<ControllerC<NextContext>, "use" | "rootPath">;
   addRoute: <M extends HTTPMethods>(
     method: M,
@@ -74,116 +66,12 @@ interface ControllerC<Context extends Record<string, unknown>> {
   finish: (serviceRegistry: ServiceRegistry) => ControllerCtx;
 }
 
-interface RouteC<
-  Omitter extends string,
-  Body,
-  Output,
-  QueryString,
-  Params,
-  Context,
-  Method extends HTTPMethods
-> {
-  body: <B extends TSchema>(
-    body: B
-  ) => Omit<
-    RouteC<"body" | Omitter, B, Output, QueryString, Params, Context, Method>,
-    "body" | Omitter
-  >;
-  output: <O extends TSchema>(
-    output: O
-  ) => Omit<
-    RouteC<"output" | Omitter, Body, O, QueryString, Params, Context, Method>,
-    "output" | Omitter
-  >;
-  querystring: <Q extends TObject>(
-    querystring: Q
-  ) => Omit<
-    RouteC<"querystring" | Omitter, Body, Output, Q, Params, Context, Method>,
-    "querystring" | Omitter
-  >;
-  handler: (
-    fn: (
-      opts: {
-        request: FastifyRequest;
-        reply: FastifyReply;
-        ctx: Context;
-        services: ServiceContainer;
-      } & (QueryString extends TSchema
-        ? { querystring: Static<QueryString> }
-        : void) &
-        (Params extends TSchema ? { params: Static<Params> } : void) &
-        (Method extends "GET" | "HEAD"
-          ? void
-          : { body: Body extends TSchema ? Static<Body> : void })
-    ) => Promise<Output extends TSchema ? Static<Output> : void>,
-    opts?: RouteShorthandOptions
-  ) => RouteCtx;
-  params: <P extends TObject>(
-    params: P
-  ) => Omit<
-    RouteC<"params" | Omitter, Body, Output, QueryString, P, Context, Method>,
-    "params" | Omitter
-  >;
-}
-
-function createRoute<
-  Omitter extends string,
-  Body,
-  Output,
-  QueryString,
-  Params,
-  Context,
-  Method extends HTTPMethods
->(
-  ctx: RouteCtx
-): RouteC<Omitter, Body, Output, QueryString, Params, Context, Method> {
-  const routerHandler: RouteC<
-    Omitter,
-    Body,
-    Output,
-    QueryString,
-    Params,
-    Context,
-    Method
-  > = {
-    body(body) {
-      ctx.body = body;
-      return proxy;
-    },
-    output(output) {
-      ctx.output = output;
-      return proxy;
-    },
-    params(params) {
-      ctx.params = params;
-      return proxy;
-    },
-    querystring(querystring) {
-      ctx.querystring = querystring;
-      return proxy;
-    },
-    handler(handler: (...args: any[]) => any, opts: RouteShorthandOptions) {
-      ctx.handler = handler;
-      ctx.opts = opts;
-      return ctx;
-    },
-  };
-
-  const proxy = new Proxy(routerHandler, {
-    get(target, p, receiver) {
-      return Reflect.get(target, p, receiver);
-    },
-  });
-
-  return routerHandler;
-}
-
 export function createController<
   Context extends Record<string, unknown> = {}
 >(): ControllerC<Context> {
   const ctx: ControllerCtx = {
     rootPath: "",
-    middleWares: [],
+    middlewares: [],
     routes: {},
   };
 
@@ -193,6 +81,7 @@ export function createController<
 
       return proxy;
     },
+    // @ts-expect-error wrong types
     addRoute<M extends HTTPMethods>(method: M, path: string) {
       if (ctx.routes[method]?.[path])
         throw new Error(
@@ -209,8 +98,10 @@ export function createController<
         ctx.routes[method][path]
       );
     },
+    // @ts-expect-error wrong types
     use(fn) {
-      ctx.middleWares.push(fn);
+      // @ts-expect-error wrong types
+      ctx.middlewares.push(fn);
       return proxy;
     },
     finish() {

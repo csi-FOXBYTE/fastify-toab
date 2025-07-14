@@ -1,20 +1,14 @@
 import { AsyncLocalStorage } from "async_hooks";
+import { FastifyReply, FastifyRequest } from "fastify";
 
-const contextLocalStorage = new AsyncLocalStorage();
+const contextLocalStorage = new AsyncLocalStorage<{
+  request: FastifyRequest;
+  reply: FastifyReply;
+}>();
 
-const serviceLockLocalStorage = new AsyncLocalStorage<boolean>();
-
-export function lockService() {
-  serviceLockLocalStorage.enterWith(true);
-}
-
-export function unlockService() {
-  serviceLockLocalStorage.disable();
-}
-
-export function getContext() {
+export function getRequestContext() {
   const store = contextLocalStorage.getStore();
-  if (!store || serviceLockLocalStorage.getStore())
+  if (!store)
     throw new Error(
       "No context set, are you trying to access the context outside of a service function?"
     );
@@ -22,6 +16,9 @@ export function getContext() {
   return store;
 }
 
-export function setContext(ctx: unknown) {
+export function setRequestContext(ctx: {
+  request: FastifyRequest;
+  reply: FastifyReply;
+}) {
   return contextLocalStorage.enterWith(ctx);
 }

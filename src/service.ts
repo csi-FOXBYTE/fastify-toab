@@ -1,11 +1,27 @@
-import { lockService, unlockService } from "./context";
+import { FastifyReply, FastifyRequest } from "fastify";
+import { getRequestContext } from "./context";
+import { QueueContainer, WorkerContainer, WorkerRegistry } from "./worker";
 
 type ServiceScope = "REQUEST" | "SINGLETON";
 
-type ServiceFactory<T> = (opts: { services: ServiceContainer }) => Promise<T>;
-type Service<T> = {
+type ServiceFactory<T, S extends ServiceScope> = (
+  opts: S extends "SINGLETON"
+    ? {
+        services: ServiceContainer;
+        workers: WorkerContainer;
+        queues: QueueContainer;
+      }
+    : {
+        services: ServiceContainer;
+        request: FastifyRequest;
+        reply: FastifyReply;
+        workers: WorkerContainer;
+        queues: QueueContainer;
+      }
+) => Promise<T>;
+type Service<T, S extends ServiceScope> = {
   name: string;
-  factory: ServiceFactory<T>;
+  factory: ServiceFactory<T, S>;
   scope: ServiceScope;
 };
 export type ServiceContainer = {
@@ -14,7 +30,7 @@ export type ServiceContainer = {
 
 export type InferService<S> = S extends {
   name: string;
-  factory: ServiceFactory<infer T>;
+  factory: ServiceFactory<infer T, infer S>;
 }
   ? T
   : never;
@@ -22,26 +38,35 @@ export type InferService<S> = S extends {
 export class ServiceRegistry {
   private readonly factories = new Map<
     string,
-    { factory: ServiceFactory<any>; scope: ServiceScope }
+    { factory: ServiceFactory<any, any>; scope: ServiceScope }
   >();
-  private readonly instances = new Map<string, any>();
-  private resolving = new Set<string>();
+  private readonly singletonInstances = new Map<string, any>();
+  private readonly workerRegistryRef: { current: WorkerRegistry | null };
 
-  register<T>({ name, factory, scope }: Service<T>): void {
+  constructor(workerRegistryRef: { current: WorkerRegistry | null }) {
+    this.workerRegistryRef = workerRegistryRef;
+  }
+
+  register<T, S extends ServiceScope>({
+    name,
+    factory,
+    scope,
+  }: Service<T, S>): void {
     if (this.factories.has(name)) {
       throw new Error(`Service "${name}" already registered.`);
     }
     this.factories.set(name, { factory, scope });
   }
 
-  private readonly singletonInstances = new Map<string, any>();
-
-  async resolve(): Promise<ServiceContainer> {
+  resolve(): ServiceContainer {
     const requestScopedInstances = new Map<string, any>();
     const resolving = new Set<string>();
 
     const container: ServiceContainer = {
       get: async <T>(name: string): Promise<T> => {
+        if (!this.workerRegistryRef.current)
+          throw new Error("Worker registry not registered yet!");
+
         const definition = this.factories.get(name);
         if (!definition) {
           throw new Error(`No service named "${name}" found!`);
@@ -64,8 +89,24 @@ export class ServiceRegistry {
           );
         }
 
+        let instance: any;
+
         resolving.add(name);
-        const instance = await factory({ services: container });
+        if (scope === "REQUEST") {
+          const ctx = getRequestContext();
+          instance = await factory({
+            services: container,
+            workers: { get: this.workerRegistryRef.current.getWorker },
+            queues: { get: this.workerRegistryRef.current.getQueue },
+            ...ctx,
+          });
+        } else {
+          instance = await factory({
+            services: container,
+            workers: { get: this.workerRegistryRef.current.getWorker },
+            queues: { get: this.workerRegistryRef.current.getQueue },
+          });
+        }
         resolving.delete(name);
 
         cache.set(name, instance);
@@ -77,10 +118,10 @@ export class ServiceRegistry {
   }
 }
 
-export function createService<T>(
+export function createService<T, S extends ServiceScope>(
   name: string,
-  factory: ServiceFactory<T>,
-  scope: ServiceScope = "SINGLETON"
+  factory: ServiceFactory<T, S>,
+  scope?: S
 ) {
-  return { name, factory, scope };
+  return { name, factory, scope: scope ?? ("SINGLETON" as S) };
 }

@@ -1,15 +1,21 @@
-import { FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import {
-    ControllerCtx,
-    ControllerRegistry,
-    HandlerOpts
-} from "./controller";
+  FastifyPluginAsync,
+  FastifyPluginCallback,
+  FastifyReply,
+  FastifyRequest,
+} from "fastify";
+import { ControllerCtx, ControllerRegistry, HandlerOpts } from "./controller";
 import { ServiceRegistry } from "./service";
-import { setContext } from "./context";
+import { setRequestContext } from "./context";
+import { WorkerRegistry } from "./worker";
 
 function composeMiddlewares(
-  middlewares: ControllerCtx["middleWares"]
-): (ctx: unknown, request: FastifyRequest, reply: FastifyReply) => Promise<unknown> {
+  middlewares: ControllerCtx["middlewares"]
+): (
+  ctx: unknown,
+  request: FastifyRequest,
+  reply: FastifyReply
+) => Promise<unknown> {
   return async (initialCtx, request, reply) => {
     let index = -1;
     let finalCtx = initialCtx;
@@ -25,7 +31,9 @@ function composeMiddlewares(
       const fn = middlewares[i];
       if (!fn) return;
 
-      await fn({ ctx, request, reply }, (nextCtx) => dispatch(i + 1, nextCtx.ctx));
+      await fn({ ctx, request, reply }, (nextCtx) =>
+        dispatch(i + 1, nextCtx.ctx)
+      );
     };
 
     await dispatch(0, initialCtx);
@@ -33,12 +41,18 @@ function composeMiddlewares(
   };
 }
 
-export const fastifyStructured: FastifyPluginCallback<{
-  controllerRegistry: ControllerRegistry;
-  serviceRegistry: ServiceRegistry;
-}> = (fastify, { controllerRegistry, serviceRegistry }, done) => {
+export const fastifyStructured: FastifyPluginAsync<{
+  getRegistries: () => Promise<{
+    controllerRegistry: ControllerRegistry;
+    serviceRegistry: ServiceRegistry;
+    workerRegistry: WorkerRegistry;
+  }>;
+}> = async (fastify, { getRegistries }) => {
+  const { controllerRegistry, serviceRegistry, workerRegistry } =
+    await getRegistries();
+
   for (const controller of controllerRegistry.controllers.values()) {
-    const middlewareChain = composeMiddlewares(controller.middleWares);
+    const middlewareChain = composeMiddlewares(controller.middlewares);
 
     for (const [method, routes] of Object.entries(controller.routes)) {
       for (const [path, route] of Object.entries(routes)) {
@@ -64,6 +78,7 @@ export const fastifyStructured: FastifyPluginCallback<{
               },
               async (request, reply) => {
                 try {
+                  setRequestContext({ request, reply });
                   const ctx = await middlewareChain({}, request, reply);
 
                   const handlerOpts = await createHandlerOpts({
@@ -71,9 +86,8 @@ export const fastifyStructured: FastifyPluginCallback<{
                     reply,
                     request,
                     serviceRegistry,
+                    workerRegistry,
                   });
-
-                  setContext({ ctx, request, reply });
 
                   const result = await route.handler(handlerOpts);
 
@@ -88,8 +102,6 @@ export const fastifyStructured: FastifyPluginCallback<{
       }
     }
   }
-
-  done();
 };
 
 async function createHandlerOpts({
@@ -97,9 +109,11 @@ async function createHandlerOpts({
   serviceRegistry,
   reply,
   request,
+  workerRegistry,
 }: {
   ctx: unknown;
   serviceRegistry: ServiceRegistry;
+  workerRegistry: WorkerRegistry;
   reply: FastifyReply;
   request: FastifyRequest;
 }): Promise<HandlerOpts> {
@@ -107,7 +121,13 @@ async function createHandlerOpts({
     ctx,
     reply,
     request,
-    services: await serviceRegistry.resolve(),
+    services: serviceRegistry.resolve(),
+    workers: {
+      get: workerRegistry.getWorker,
+    },
+    queues: {
+      get: workerRegistry.getQueue,
+    },
     body: request.body,
     params: request.params,
     querystring: request.query,

@@ -1,10 +1,10 @@
 import Fastify from "fastify";
 import { fastifyStructured } from "../src/helpers";
-import { controllerRegistry, serviceRegistry } from "./registries";
+import { getRegistries } from "./registries";
 
 const fastify = Fastify({});
 
-fastify.register(fastifyStructured, { controllerRegistry, serviceRegistry });
+fastify.register(fastifyStructured, { getRegistries });
 
 (async () => {
   await fastify.ready();

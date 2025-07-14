@@ -2,7 +2,7 @@ import {
   createService,
   InferService,
   ServiceContainer,
-} from "../../src/service";
+} from "../../src/index";
 
 const userService = createService("user", async ({ services }) => ({
   async user() {

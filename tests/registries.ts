@@ -1,16 +1,38 @@
-import { ControllerRegistry } from "../src/controller";
-import { ServiceRegistry } from "../src/service";
+import {
+  ControllerRegistry,
+  ServiceRegistry,
+  WorkerRegistry,
+} from "../src/index";
 import { irrelevantService } from "./irrelevant/irrelevant.service";
 import { testController } from "./test/test.controller";
 import { testService } from "./test/test.service";
+import { test0Worker } from "./test/workers/test0.worker";
+import { test1Worker } from "./test/workers/test1.worker";
 import { userService } from "./user/user.service";
 
-const serviceRegistry = new ServiceRegistry();
-serviceRegistry.register(testService);
-serviceRegistry.register(userService);
-serviceRegistry.register(irrelevantService);
+export async function getRegistries() {
+  try {
+    let workerRegistryRef: { current: WorkerRegistry | null } = {
+      current: null,
+    };
 
-const controllerRegistry = new ControllerRegistry(serviceRegistry);
-controllerRegistry.register(testController);
+    const serviceRegistry = new ServiceRegistry(workerRegistryRef);
+    serviceRegistry.register(testService);
+    serviceRegistry.register(userService);
+    serviceRegistry.register(irrelevantService);
 
-export { controllerRegistry, serviceRegistry };
+    const workerRegistry = new WorkerRegistry(serviceRegistry);
+    await workerRegistry.register(test0Worker);
+    await workerRegistry.register(test1Worker);
+
+    workerRegistryRef.current = workerRegistry;
+
+    const controllerRegistry = new ControllerRegistry(serviceRegistry);
+    controllerRegistry.register(testController);
+
+    return { controllerRegistry, serviceRegistry, workerRegistry };
+  } catch (e) {
+    console.error("UNKNOWN ERROR", e);
+    throw e;
+  }
+}

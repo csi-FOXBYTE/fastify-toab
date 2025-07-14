@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import { createController } from "../../src/controller";
+import { createController } from "../../src/index";
 import { getTestService } from "./test.service";
 
 const testController = createController()
@@ -31,6 +31,8 @@ testController
   .handler(async (opts) => {
     try {
       const testService = await getTestService(opts.services);
+
+      console.log({ testService });
 
       testService.log("HALLO");
 
