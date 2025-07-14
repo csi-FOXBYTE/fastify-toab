@@ -32,6 +32,8 @@
     "tiny-glob": "^0.2.9"
   },
   "devDependencies": {
+    "@fastify/swagger": "^9.5.1",
+    "@fastify/swagger-ui": "^5.2.3",
     "@sinclair/typebox": "^0.34.37",
     "@types/node": "^24.0.13",
     "tsup": "^8.5.0",

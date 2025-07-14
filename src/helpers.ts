@@ -86,6 +86,10 @@ export const fastifyToab: FastifyPluginAsync<{
     workerRegistry: WorkerRegistry;
   }>;
 }> = async (fastify, { getRegistries }) => {
+  fastify.addHook("onRequest", async (request, reply) => {
+    setRequestContext({ request, reply });
+  });
+
   const { controllerRegistry, serviceRegistry, workerRegistry } =
     await getRegistries();
 
@@ -109,6 +113,7 @@ export const fastifyToab: FastifyPluginAsync<{
               ...(route.body ? { body: route.body } : {}),
               ...(route.params ? { params: route.params } : {}),
               ...(route.querystring ? { body: route.querystring } : {}),
+              ...(route.headers ? { headers: route.headers } : {}),
               response: route.output
                 ? {
                     200: route.output,
@@ -122,7 +127,6 @@ export const fastifyToab: FastifyPluginAsync<{
           },
           async (request: FastifyRequest, reply: FastifyReply) => {
             try {
-              setRequestContext({ request, reply });
               const ctx = await middlewareChain(
                 {},
                 request,
@@ -132,23 +136,26 @@ export const fastifyToab: FastifyPluginAsync<{
                 { get: workerRegistry.getQueue }
               );
 
+              const abortController = new AbortController();
+
+              request.raw.on("close", () => {
+                abortController.abort("User disconnect.");
+              });
+
               const handlerOpts = await createHandlerOpts({
                 ctx,
                 reply,
                 request,
                 serviceRegistry,
+                signal: abortController.signal,
                 workerRegistry,
               });
 
-              try {
-                const result = await route.handler(handlerOpts);
+              const result = await route.handler(handlerOpts);
 
-                if (!result) return reply.raw.end();
+              if (!result) return reply.raw.end();
 
-                return result;
-              } catch (e) {
-                return handleRouteError(e, fastify, composedPath, reply);
-              }
+              return result;
             } catch (e) {
               return handleRouteError(e, fastify, composedPath, reply);
             }
@@ -175,8 +182,84 @@ export const fastifyToab: FastifyPluginAsync<{
             fastify.put(...payload);
             break;
           case "SSE":
-            throw new Error("Not implemented yet!");
-            fastify.get(...payload);
+            fastify.get(
+              payload[0],
+              {
+                ...payload[1],
+                schema: {
+                  ...payload[1].schema,
+                  response: {
+                    ...(payload[1].schema?.response ?? {}),
+                    200: {
+                      description: "SSE",
+                      content: {
+                        "text/event-stream": {
+                          schema: {
+                            type: "string",
+                            example: 'data: {"mesage":"hello"}\n\n',
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              async (request, reply) => {
+                try {
+                  const ctx = await middlewareChain(
+                    {},
+                    request,
+                    reply,
+                    serviceRegistry.resolve(),
+                    { get: workerRegistry.getWorker },
+                    { get: workerRegistry.getQueue }
+                  );
+
+                  const abortController = new AbortController();
+
+                  const handlerOpts = await createHandlerOpts({
+                    ctx,
+                    reply,
+                    request,
+                    serviceRegistry,
+                    signal: abortController.signal,
+                    workerRegistry,
+                  });
+
+                  const pingInterval = setInterval(() => {
+                    reply.raw.write(":ok\n\n");
+                  }, 5_000);
+
+                  request.raw.on("close", () => {
+                    clearInterval(pingInterval);
+                    abortController.abort("User disconnect.");
+                  });
+
+                  reply.raw.writeHead(200, "OK", {
+                    "content-type": "text/event-stream; charset=utf-8",
+                    connection: "keep-alive",
+                    "cache-control": "no-cache,no-transform",
+                    "x-no-compression": 1,
+                  });
+
+                  try {
+                    for await (const part of route.handler<"SSE">(
+                      handlerOpts
+                    )) {
+                      if (abortController.signal.aborted) break;
+                      reply.raw.write(`data: ${JSON.stringify(part)}\n\n`);
+                    }
+                  } catch (e) {
+                    reply.raw.write(`error: ${JSON.stringify(e)}\n\n`);
+                  }
+
+                  clearInterval(pingInterval);
+                  reply.raw.end();
+                } catch (e) {
+                  return handleRouteError(e, fastify, composedPath, reply);
+                }
+              }
+            );
             break;
         }
       }
@@ -190,12 +273,14 @@ async function createHandlerOpts({
   reply,
   request,
   workerRegistry,
+  signal,
 }: {
   ctx: unknown;
   serviceRegistry: ServiceRegistry;
   workerRegistry: WorkerRegistry;
   reply: FastifyReply;
   request: FastifyRequest;
+  signal: AbortSignal;
 }): Promise<HandlerOpts> {
   return {
     ctx,
@@ -211,5 +296,7 @@ async function createHandlerOpts({
     body: request.body,
     params: request.params,
     querystring: request.query,
+    headers: request.headers,
+    signal,
   };
 }

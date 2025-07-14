@@ -93,12 +93,11 @@ export class ServiceRegistry {
 
         resolving.add(name);
         if (scope === "REQUEST") {
-          const ctx = getRequestContext();
           instance = await factory({
             services: container,
             workers: { get: this.workerRegistryRef.current.getWorker },
             queues: { get: this.workerRegistryRef.current.getQueue },
-            ...ctx,
+            ...getRequestContext(),
           });
         } else {
           instance = await factory({

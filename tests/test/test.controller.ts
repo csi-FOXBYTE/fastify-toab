@@ -38,11 +38,24 @@ testController
 
       console.log({ testService });
 
-      testService.log("HALLO");
+      await testService.log("HALLO");
 
       return { test: "succeeded" };
     } catch (e) {
       throw e;
+    }
+  });
+
+testController
+  .addRoute("SSE", "/sse")
+  .output(Type.Object({ alles: Type.Boolean() }))
+  .handler(async function* (opts) {
+    let counter = 0;
+    for (let i = 0; i < 512; i++) {
+      // if (opts.signal.aborted) break;
+      yield { alles: true };
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (counter++ > 10) throw new Error("NONONO");
     }
   });
 

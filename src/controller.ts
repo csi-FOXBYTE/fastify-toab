@@ -19,10 +19,12 @@ export type HandlerOpts = {
   body?: unknown;
   params?: unknown;
   querystring?: unknown;
+  headers?: unknown;
   ctx: unknown;
   services: ServiceContainer;
   workers: WorkerContainer;
   queues: QueueContainer;
+  signal: AbortSignal;
 };
 
 export type ControllerCtx = {
@@ -56,15 +58,16 @@ interface ControllerC<Context extends Record<string, unknown>> {
     path: `/${string}`
   ) => Omit<
     RouteC<
-      M extends "GET" | "HEAD" ? "body" : "",
+      M extends "GET" | "HEAD" | "SSE" ? "body" : "",
       unknown,
       unknown,
       unknown,
       unknown,
       Context,
-      M
+      M,
+      unknown
     >,
-    M extends "GET" | "HEAD" ? "body" : ""
+    M extends "GET" | "HEAD" | "SSE" ? "body" : ""
   >;
   /**
    * DO NOT CALL THIS MANUALLY!
@@ -96,14 +99,22 @@ export function createController<
         );
       if (!ctx.routes[method]) ctx.routes[method] = {};
       ctx.routes[method][path] = {
+        // @ts-expect-error wrong type
         handler: async () => {
           throw new Error("Not implemented!");
         },
       };
 
-      return createRoute<"", unknown, unknown, unknown, unknown, Context, M>(
-        ctx.routes[method][path]
-      );
+      return createRoute<
+        "",
+        unknown,
+        unknown,
+        unknown,
+        unknown,
+        Context,
+        M,
+        unknown
+      >(ctx.routes[method][path]);
     },
     // @ts-expect-error wrong types
     use(fn) {
