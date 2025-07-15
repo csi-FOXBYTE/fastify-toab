@@ -1,14 +1,15 @@
 {
   "name": "@csi-foxbyte/fastify-toab",
   "version": "0.0.1",
+  "author": "Tobias Ganzhorn @Foxbyte",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tganzhorn/fastify-opinionated.git"
+    "url": "hhttps://github.com/csi-FOXBYTE/fastify-toab.git"
   },
   "bin": {
     "fastify-toab": "./dist/generate.js"
   },
-  "description": "Fastify Modular is a lightweight architectural layer for Fastify that introduces a clean, structured way to organize applications using controllers and services — inspired by frameworks like NestJS, but without the overhead.",
+  "description": "Fastify Toab is a lightweight architectural layer for Fastify that introduces a clean, structured way to organize applications using controllers and services — inspired by frameworks like trpc.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",

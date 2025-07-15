@@ -104,7 +104,7 @@ import {
       .slice(0, -1)
       .join(".")
       .split("\\")
-      .join("/")}";`;
+      .join("/")}${emitJsWithFileEnding ? ".js" : ""}";`;
   }
 
   function mapNameAndPath(
@@ -181,6 +181,36 @@ program
   .version("0.0.1");
 
 program
+  .command("rebuild")
+  .description("rebuild registries")
+  .addOption(
+    new Option(
+      "-w, --workdir <path>",
+      "workdir to operate in is src at default."
+    )
+  )
+  .action(async (options) => {
+    const configRaw = await readFile(".fastify-toab.rc.json");
+
+    const config = JSON.parse(configRaw.toString()) as {
+      workdir?: string;
+      emitWithJsEnding?: boolean;
+    };
+
+    const workdir = path.join(
+      process.cwd(),
+      options.workdir ?? config.workdir ?? "src"
+    );
+
+    const registries = await createRegistries(
+      workdir,
+      config.emitWithJsEnding ?? false
+    );
+
+    await writeFile(path.join(workdir, "registries.ts"), registries);
+  });
+
+program
   .command("create")
   .description("create a component")
   .addArgument(
@@ -205,9 +235,9 @@ program
     if (component === "worker" && !workerName)
       throw new Error("No workerName for worker supplied!");
 
-    const file = await readFile("fastify-toab.rc.json");
+    const configRaw = await readFile(".fastify-toab.rc.json");
 
-    const config = JSON.parse(file.toString()) as {
+    const config = JSON.parse(configRaw.toString()) as {
       workdir?: string;
       emitWithJsEnding?: boolean;
     };
