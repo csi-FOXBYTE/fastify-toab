@@ -6,6 +6,7 @@
     "type": "git",
     "url": "https://github.com/csi-FOXBYTE/fastify-toab.git"
   },
+  "license": "LGPL-3.0-or-later",
   "bin": {
     "fastify-toab": "./dist/generate.js"
   },
