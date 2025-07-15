@@ -1,8 +1,4 @@
-import {
-  createService,
-  InferService,
-  ServiceContainer,
-} from "../../src/index";
+import { createService, InferService, ServiceContainer } from "../../src/index";
 import { getUserService } from "../user/user.service";
 import { getTest0WorkerQueue } from "./workers/test0.worker";
 
@@ -16,13 +12,13 @@ const testService = createService(
 
         const queue0 = getTest0WorkerQueue(queues);
 
-        queue0.add("name", { test: "abc"})
+        queue0.add("name", { test: "abc" });
 
         console.log("ALORA", msg, await userService.user());
       },
     };
   },
-  "REQUEST"
+  { scope: "REQUEST" }
 );
 
 // Auto generated part please dont change anything below!

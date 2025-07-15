@@ -3,6 +3,7 @@ import { getRequestContext } from "./context";
 import { QueueContainer, WorkerContainer, WorkerRegistry } from "./worker";
 
 type ServiceScope = "REQUEST" | "SINGLETON";
+type ServiceBuildTime = "DYNAMIC" | "INSTANT";
 
 type ServiceFactory<T, S extends ServiceScope> = (
   opts: S extends "SINGLETON"
@@ -23,6 +24,7 @@ type Service<T, S extends ServiceScope> = {
   name: string;
   factory: ServiceFactory<T, S>;
   scope: ServiceScope;
+  buildTime: ServiceBuildTime;
 };
 export type ServiceContainer = {
   get<T>(name: string): Promise<T>;
@@ -38,7 +40,11 @@ export type InferService<S> = S extends {
 export class ServiceRegistry {
   private readonly factories = new Map<
     string,
-    { factory: ServiceFactory<any, any>; scope: ServiceScope }
+    {
+      factory: ServiceFactory<any, any>;
+      scope: ServiceScope;
+      buildTime: ServiceBuildTime;
+    }
   >();
   private readonly singletonInstances = new Map<string, any>();
   private readonly workerRegistryRef: { current: WorkerRegistry | null };
@@ -51,11 +57,21 @@ export class ServiceRegistry {
     name,
     factory,
     scope,
+    buildTime,
   }: Service<T, S>): void {
     if (this.factories.has(name)) {
       throw new Error(`Service "${name}" already registered.`);
     }
-    this.factories.set(name, { factory, scope });
+    this.factories.set(name, { factory, scope, buildTime });
+  }
+
+  async initializeInstant() {
+    for (const [name, { buildTime }] of this.factories.entries()) {
+      if (buildTime === "INSTANT") {
+        await this.resolve().get(name);
+        console.log("INITIALIZED", name);
+      }
+    }
   }
 
   resolve(): ServiceContainer {
@@ -120,7 +136,14 @@ export class ServiceRegistry {
 export function createService<T, S extends ServiceScope>(
   name: string,
   factory: ServiceFactory<T, S>,
-  scope?: S
-) {
-  return { name, factory, scope: scope ?? ("SINGLETON" as S) };
+  opts?: S extends "SINGLETON"
+    ? { scope?: S; buildTime?: ServiceBuildTime }
+    : { scope?: S; buildTime?: undefined }
+): Service<T, S> {
+  return {
+    name,
+    factory,
+    scope: opts?.scope ?? ("SINGLETON" as S),
+    buildTime: opts?.buildTime ?? "DYNAMIC",
+  };
 }

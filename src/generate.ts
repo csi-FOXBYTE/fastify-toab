@@ -1,5 +1,5 @@
 import { Argument, Command, Option } from "commander";
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile, mkdir, readFile } from "fs/promises";
 import Handlebars from "handlebars";
 import path from "path";
 import glob from "tiny-glob";
@@ -78,7 +78,10 @@ export function get{{cname}}Service(deps: ServiceContainer) {
 }
 `);
 
-async function createRegistries(workdir: string) {
+async function createRegistries(
+  workdir: string,
+  emitJsWithFileEnding: boolean
+) {
   const services = await glob("**/*.service.ts", { cwd: workdir });
   const controllers = await glob("**/*.controller.ts", { cwd: workdir });
   const workers = await glob("**/*.worker.ts", { cwd: workdir });
@@ -201,7 +204,18 @@ program
   .action(async (component, nameOrParent, workerName, options) => {
     if (component === "worker" && !workerName)
       throw new Error("No workerName for worker supplied!");
-    const workdir = path.join(process.cwd(), options.workdir ?? "src");
+
+    const file = await readFile("fastify-toab.rc.json");
+
+    const config = JSON.parse(file.toString()) as {
+      workdir?: string;
+      emitWithJsEnding?: boolean;
+    };
+
+    const workdir = path.join(
+      process.cwd(),
+      options.workdir ?? config.workdir ?? "src"
+    );
 
     await mkdir(path.join(workdir, nameOrParent), { recursive: true });
 
@@ -251,7 +265,10 @@ program
       }
     }
 
-    const registries = await createRegistries(workdir);
+    const registries = await createRegistries(
+      workdir,
+      config.emitWithJsEnding ?? false
+    );
 
     await writeFile(path.join(workdir, "registries.ts"), registries);
   });

@@ -1,14 +1,14 @@
-import {
-  createService,
-  InferService,
-  ServiceContainer,
-} from "../../src/index";
+import { createService, InferService, ServiceContainer } from "../../src/index";
 
-const userService = createService("user", async ({ services }) => ({
-  async user() {
-    return { name: "Tobi", id: "abc" };
-  },
-}));
+const userService = createService(
+  "user",
+  async ({ services }) => ({
+    async user() {
+      return { name: "Tobi", id: "abc" };
+    },
+  }),
+  { buildTime: "INSTANT" }
+);
 
 // Auto generated part please dont change anything below!
 export { userService };

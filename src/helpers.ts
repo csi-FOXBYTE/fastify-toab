@@ -93,6 +93,8 @@ export const fastifyToab: FastifyPluginAsync<{
   const { controllerRegistry, serviceRegistry, workerRegistry } =
     await getRegistries();
 
+  await serviceRegistry.initializeInstant();
+
   for (const controller of controllerRegistry.controllers.values()) {
     let middlewareChain: ReturnType<typeof composeMiddlewares>;
     try {
