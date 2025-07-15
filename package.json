@@ -4,7 +4,7 @@
   "author": "Tobias Ganzhorn @Foxbyte",
   "repository": {
     "type": "git",
-    "url": "hhttps://github.com/csi-FOXBYTE/fastify-toab.git"
+    "url": "https://github.com/csi-FOXBYTE/fastify-toab.git"
   },
   "bin": {
     "fastify-toab": "./dist/generate.js"
@@ -21,7 +21,9 @@
   },
   "keywords": [
     "fastify",
-    "modular",
+    "toab",
+    "openapi",
+    "middleware",
     "controllers",
     "services"
   ],
