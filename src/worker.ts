@@ -30,7 +30,7 @@ export interface WorkerCtx<Q extends Queue, W extends Worker> {
   onceHandlers: Parameters<WorkerC<"", Job<any, any, any>, null>["on"]>[];
   isSandboxed: boolean;
   connection: ConnectionOptions;
-  options?: WorkerOptions;
+  options?: Omit<WorkerOptions, "connection">;
   processor:
     | string
     | URL
@@ -183,7 +183,7 @@ export interface WorkerC<
     Omitter | "sandboxedJob" | "job"
   >;
   options: (
-    options: WorkerOptions
+    options: Omit<WorkerOptions, "connection">
   ) => Omit<WorkerC<Omitter | "options", J, SJ>, Omitter | "options">;
   connection: (
     connection: ConnectionOptions
