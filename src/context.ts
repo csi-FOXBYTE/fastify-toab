@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "async_hooks";
-import { FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 
 const contextLocalStorage = new AsyncLocalStorage<{
   request: FastifyRequest;

@@ -1,5 +1,5 @@
 import { TSchema, TObject, Static } from "@sinclair/typebox";
-import {
+import type {
   RouteShorthandOptions,
   HTTPMethods,
   FastifyRequest,

@@ -1,4 +1,4 @@
-import { FastifyReply } from "fastify";
+import type { FastifyReply } from "fastify";
 import { Type } from "@sinclair/typebox";
 
 type ErrorStatis =

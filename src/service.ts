@@ -1,4 +1,4 @@
-import { FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { getRequestContext } from "./context";
 import { QueueContainer, WorkerContainer, WorkerRegistry } from "./worker";
 

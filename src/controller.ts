@@ -1,4 +1,4 @@
-import { FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { createMiddleware } from "./middleware";
 import { createRoute, RouteC, RouteCtx } from "./route";
 import { ServiceContainer, ServiceRegistry } from "./service";
