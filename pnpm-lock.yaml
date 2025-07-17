@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       bullmq:
-        specifier: ^5.56.4
+        specifier: ^5.0.0
         version: 5.56.4
       commander:
         specifier: ^14.0.0

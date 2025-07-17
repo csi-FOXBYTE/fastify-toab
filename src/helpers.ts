@@ -106,7 +106,9 @@ export const fastifyToab: FastifyPluginAsync<{
 
     for (const [method, routes] of Object.entries(controller.routes)) {
       for (const [path, route] of Object.entries(routes)) {
-        const composedPath = `${controller.rootPath}${path}`;
+        const composedPath = `${controller.rootPath}${
+          path === "/" ? "" : path
+        }`;
 
         const payload = [
           composedPath,

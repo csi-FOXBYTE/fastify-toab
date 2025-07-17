@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { getRequestContext } from "./context";
 import { QueueContainer, WorkerContainer, WorkerRegistry } from "./worker";
+import { AsyncLocalStorage } from "async_hooks";
 
 type ServiceScope = "REQUEST" | "SINGLETON";
 type ServiceBuildTime = "DYNAMIC" | "INSTANT";
@@ -37,6 +38,10 @@ export type InferService<S> = S extends {
   ? T
   : never;
 
+const resolveLocalStorage = new AsyncLocalStorage<{
+  visitedSet: Set<string>;
+}>();
+
 export class ServiceRegistry {
   private readonly factories = new Map<
     string,
@@ -69,7 +74,6 @@ export class ServiceRegistry {
     for (const [name, { buildTime }] of this.factories.entries()) {
       if (buildTime === "INSTANT") {
         await this.resolve().get(name);
-        console.log("INITIALIZED", name);
       }
     }
   }
@@ -80,6 +84,15 @@ export class ServiceRegistry {
 
     const container: ServiceContainer = {
       get: async <T>(name: string): Promise<T> => {
+        let store = resolveLocalStorage.getStore();
+
+        if (!store) {
+          store = { visitedSet: new Set() };
+          resolveLocalStorage.enterWith(store);
+        }
+
+        store.visitedSet.add(name);
+
         if (!this.workerRegistryRef.current)
           throw new Error("Worker registry not registered yet!");
 
@@ -111,15 +124,15 @@ export class ServiceRegistry {
         if (scope === "REQUEST") {
           instance = await factory({
             services: container,
-            workers: { get: this.workerRegistryRef.current.getWorker },
-            queues: { get: this.workerRegistryRef.current.getQueue },
+            workers: { get: this.workerRegistryRef.current.getWorker.bind(this.workerRegistryRef.current) },
+            queues: { get: this.workerRegistryRef.current.getQueue.bind(this.workerRegistryRef.current) },
             ...getRequestContext(),
           });
         } else {
           instance = await factory({
             services: container,
-            workers: { get: this.workerRegistryRef.current.getWorker },
-            queues: { get: this.workerRegistryRef.current.getQueue },
+            workers: { get: this.workerRegistryRef.current.getWorker.bind(this.workerRegistryRef.current) },
+            queues: { get: this.workerRegistryRef.current.getQueue.bind(this.workerRegistryRef.current) },
           });
         }
         resolving.delete(name);

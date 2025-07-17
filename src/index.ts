@@ -12,7 +12,6 @@ export {
   createService,
 } from "./service";
 export { createMiddleware } from "./middleware";
-export { Job, Queue } from "bullmq";
 import { fastifyToab } from "./helpers";
 export { fastifyToab };
 export default fastifyToab;

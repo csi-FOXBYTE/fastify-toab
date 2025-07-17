@@ -27,6 +27,7 @@ const test1Worker = createWorker()
 export { test1Worker };
 export type Test1Worker = (typeof test1Worker)["worker"];
 export type Test1WorkerQueue = (typeof test1Worker)["queue"];
+export type Test1WorkerJob = (typeof test1Worker)["job"];
 
 export function getTest1Worker(deps: WorkerContainer) {
   return deps.get<Test1Worker>(test1Worker.queueName);

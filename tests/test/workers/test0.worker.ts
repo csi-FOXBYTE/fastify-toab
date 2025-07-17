@@ -8,7 +8,7 @@ import {
 const test0Worker = createWorker()
   .queue("test-queue-0")
   .job<Job<{ test: string }, {}>>()
-  .once("completed", (job) => {
+  .once("completed", ({}, job) => {
     console.log(job.data.test);
   })
   .connection({

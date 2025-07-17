@@ -1,12 +1,12 @@
 import type { Options } from "tsup";
 
 export const tsup: Options = {
-  splitting: true,
+  splitting: false,
   sourcemap: true,
   platform: "node",
   minify: true,
-  dts: { 
-    entry: "src/index.ts"
+  dts: {
+    entry: "src/index.ts",
   },
   target: "es2020",
   format: ["esm"],

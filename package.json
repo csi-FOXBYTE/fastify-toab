@@ -1,6 +1,6 @@
 {
   "name": "@csi-foxbyte/fastify-toab",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "author": "Tobias Ganzhorn @Foxbyte",
   "repository": {
     "type": "git",
@@ -28,8 +28,10 @@
     "controllers",
     "services"
   ],
+  "peerDependencies": {
+    "bullmq": "^5.0.0"
+  },
   "dependencies": {
-    "bullmq": "^5.56.4",
     "commander": "^14.0.0",
     "handlebars": "^4.7.8",
     "tiny-glob": "^0.2.9"

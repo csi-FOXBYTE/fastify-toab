@@ -20,7 +20,20 @@ export interface QueueContainer {
   get: WorkerRegistry["getQueue"];
 }
 
-export interface WorkerCtx<Q extends Queue, W extends Worker> {
+type WithOpts<F extends (...args: any[]) => any> = (
+  opts: {
+    services: ServiceContainer;
+    queues: QueueContainer;
+    workers: WorkerContainer;
+  },
+  ...args: Parameters<F>
+) => ReturnType<F>;
+
+export interface WorkerCtx<
+  Q extends Queue,
+  W extends Worker,
+  J extends Job | SandboxedJob
+> {
   queueName: string;
   queueOptions?: QueueOptions;
   jobSchedulers: Parameters<
@@ -45,6 +58,7 @@ export interface WorkerCtx<Q extends Queue, W extends Worker> {
       ) => Promise<any>);
   queue: Q; // only type
   worker: W; // only type
+  job: J; // only type
 }
 
 export class WorkerRegistry {
@@ -58,8 +72,9 @@ export class WorkerRegistry {
 
   async register<
     Q extends Queue<any, any, any, any, any>,
-    W extends Worker<any, any, any>
-  >(workerCtx: WorkerCtx<Q, W>) {
+    W extends Worker<any, any, any>,
+    J extends Job<any, any, any> | SandboxedJob<any, any>
+  >(workerCtx: WorkerCtx<Q, W, J>, dontInitializeWorkers?: boolean) {
     if (this.queues.has(workerCtx.queueName)) {
       throw new Error(
         `Queue with name "${workerCtx.queueName}" is already registered.`
@@ -76,6 +91,8 @@ export class WorkerRegistry {
     for (const jobScheduler of workerCtx.jobSchedulers) {
       await queue.upsertJobScheduler(...jobScheduler);
     }
+
+    if (dontInitializeWorkers) return;
 
     if (this.workers.has(workerCtx.queueName)) {
       throw new Error(
@@ -119,8 +136,19 @@ export class WorkerRegistry {
     for (const onHandler of workerCtx.onHandlers) {
       worker.on(onHandler[0], async (...args: any[]) => {
         try {
-          // @ts-expect-error wrong type
-          return await onHandler[1](...args);
+          return await onHandler[1](
+            {
+              services: this.serviceRegistry.resolve(),
+              workers: {
+                get: this.getWorker.bind(this),
+              },
+              queues: {
+                get: this.getQueue.bind(this),
+              },
+            },
+            // @ts-expect-error wrong type
+            ...args
+          );
         } catch (e) {
           console.error(`Error in worker on "${onHandler[0]}" handler.`, e);
         }
@@ -130,8 +158,19 @@ export class WorkerRegistry {
     for (const onceHandler of workerCtx.onceHandlers) {
       worker.once(onceHandler[0], async (...args: any[]) => {
         try {
-          // @ts-expect-error wrong type
-          return await onceHandler[1](...args);
+          return await onceHandler[1](
+            {
+              services: this.serviceRegistry.resolve(),
+              workers: {
+                get: this.getWorker.bind(this),
+              },
+              queues: {
+                get: this.getQueue.bind(this),
+              },
+            },
+            // @ts-expect-error wrong type
+            ...args
+          );
         } catch (e) {
           console.error(`Error in worker once "${onceHandler[0]}" handler.`, e);
         }
@@ -203,11 +242,11 @@ export interface WorkerC<
           },
           token?: string
         ) => Promise<R>
-      ) => WorkerCtx<Queue<T, R, N>, Worker<T, R, string>>
+      ) => WorkerCtx<Queue<T, R, N>, Worker<T, R, string>, J>
     : SJ extends SandboxedJob<infer T, infer R>
     ? (
         url: string | URL
-      ) => WorkerCtx<Queue<T, R, string>, Worker<T, R, string>>
+      ) => WorkerCtx<Queue<T, R, string>, Worker<T, R, string>, SJ>
     : never;
   upsertJobScheduler: J extends Job<infer T, infer R, infer N>
     ? (
@@ -233,23 +272,23 @@ export interface WorkerC<
   on: J extends Job<infer T, infer R, infer N>
     ? <Key extends keyof WorkerListener<T, R, N>>(
         event: Key,
-        listener: WorkerListener<T, R, N>[Key]
+        listener: WithOpts<WorkerListener<T, R, N>[Key]>
       ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
     : SJ extends SandboxedJob<infer T, infer R>
     ? <Key extends keyof WorkerListener<T, R, string>>(
         event: Key,
-        listener: WorkerListener<T, R, string>[Key]
+        listener: WithOpts<WorkerListener<T, R>[Key]>
       ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
     : never;
   once: J extends Job<infer T, infer R, infer N>
     ? <Key extends keyof WorkerListener<T, R, N>>(
         event: Key,
-        listener: WorkerListener<T, R, N>[Key]
+        listener: WithOpts<WorkerListener<T, R, N>[Key]>
       ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
     : SJ extends SandboxedJob<infer T, infer R>
     ? <Key extends keyof WorkerListener<T, R, string>>(
         event: Key,
-        listener: WorkerListener<T, R, string>[Key]
+        listener: WithOpts<WorkerListener<T, R>[Key]>
       ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
     : never;
 }
@@ -258,7 +297,7 @@ export function createWorker<Omitter extends string = "">(): Pick<
   WorkerC<Omitter, null, null>,
   "queue"
 > {
-  const ctx: WorkerCtx<any, any> = {
+  const ctx: WorkerCtx<any, any, any> = {
     queueName: "",
     jobSchedulers: [],
     onceHandlers: [],
@@ -268,6 +307,7 @@ export function createWorker<Omitter extends string = "">(): Pick<
     processor: "",
     onHandlers: [],
     isSandboxed: false,
+    job: null,
   };
 
   const workerHandler: WorkerC<Omitter, Job<any, any, any>, null> = {
