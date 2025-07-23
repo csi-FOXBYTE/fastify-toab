@@ -75,109 +75,119 @@ export class WorkerRegistry {
     W extends Worker<any, any, any>,
     J extends Job<any, any, any> | SandboxedJob<any, any>
   >(workerCtx: WorkerCtx<Q, W, J>, dontInitializeWorkers?: boolean) {
-    if (this.queues.has(workerCtx.queueName)) {
-      throw new Error(
-        `Queue with name "${workerCtx.queueName}" is already registered.`
-      );
-    }
+    try {
+      if (this.queues.has(workerCtx.queueName)) {
+        throw new Error(
+          `Queue with name "${workerCtx.queueName}" is already registered.`
+        );
+      }
 
-    const queue = new Queue(workerCtx.queueName, {
-      ...workerCtx.queueOptions,
-      connection: workerCtx.connection,
-    });
+      const queue = new Queue(workerCtx.queueName, {
+        ...workerCtx.queueOptions,
+        connection: workerCtx.connection,
+      });
 
-    this.queues.set(queue.name, queue);
+      this.queues.set(queue.name, queue);
 
-    for (const jobScheduler of workerCtx.jobSchedulers) {
-      await queue.upsertJobScheduler(...jobScheduler);
-    }
+      for (const jobScheduler of workerCtx.jobSchedulers) {
+        await queue.upsertJobScheduler(...jobScheduler);
+      }
 
-    if (dontInitializeWorkers) return;
+      if (dontInitializeWorkers) return;
 
-    if (this.workers.has(workerCtx.queueName)) {
-      throw new Error(
-        `Queue with name "${workerCtx.queueName}" is already registered.`
-      );
-    }
+      if (this.workers.has(workerCtx.queueName)) {
+        throw new Error(
+          `Queue with name "${workerCtx.queueName}" is already registered.`
+        );
+      }
 
-    const worker = new Worker(
-      workerCtx.queueName,
-      typeof workerCtx.processor === "function"
-        ? async (job, token) => {
-            if (typeof workerCtx.processor !== "function")
-              throw new Error(
-                "Processor was not a function but was expected to be one."
-              );
+      const worker = new Worker(
+        workerCtx.queueName,
+        typeof workerCtx.processor === "function"
+          ? async (job, token) => {
+              if (typeof workerCtx.processor !== "function")
+                throw new Error(
+                  "Processor was not a function but was expected to be one."
+                );
 
-            try {
-              const result = await workerCtx.processor(
-                job,
-                {
-                  services: this.serviceRegistry.resolve(),
-                  workers: {
-                    get: this.getWorker.bind(this),
+              try {
+                const result = await workerCtx.processor(
+                  job,
+                  {
+                    services: this.serviceRegistry.resolve(),
+                    workers: {
+                      get: this.getWorker.bind(this),
+                    },
+                    queues: {
+                      get: this.getQueue.bind(this),
+                    },
                   },
-                  queues: {
-                    get: this.getQueue.bind(this),
-                  },
-                },
-                token
-              );
-              return result;
-            } catch (e) {
-              console.error(`Error in processor ${workerCtx.queueName}`, e);
-              throw e;
+                  token
+                );
+                return result;
+              } catch (e) {
+                console.error(`Error in processor ${workerCtx.queueName}`, e);
+                throw e;
+              }
             }
+          : workerCtx.processor,
+        { ...workerCtx.options, connection: workerCtx.connection }
+      );
+
+      for (const onHandler of workerCtx.onHandlers) {
+        worker.on(onHandler[0], async (...args: any[]) => {
+          try {
+            return await onHandler[1](
+              {
+                services: this.serviceRegistry.resolve(),
+                workers: {
+                  get: this.getWorker.bind(this),
+                },
+                queues: {
+                  get: this.getQueue.bind(this),
+                },
+              },
+              // @ts-expect-error wrong type
+              ...args
+            );
+          } catch (e) {
+            console.error(`Error in worker on "${onHandler[0]}" handler.`, e);
           }
-        : workerCtx.processor,
-      { ...workerCtx.options, connection: workerCtx.connection }
-    );
+        });
+      }
 
-    for (const onHandler of workerCtx.onHandlers) {
-      worker.on(onHandler[0], async (...args: any[]) => {
-        try {
-          return await onHandler[1](
-            {
-              services: this.serviceRegistry.resolve(),
-              workers: {
-                get: this.getWorker.bind(this),
+      for (const onceHandler of workerCtx.onceHandlers) {
+        worker.once(onceHandler[0], async (...args: any[]) => {
+          try {
+            return await onceHandler[1](
+              {
+                services: this.serviceRegistry.resolve(),
+                workers: {
+                  get: this.getWorker.bind(this),
+                },
+                queues: {
+                  get: this.getQueue.bind(this),
+                },
               },
-              queues: {
-                get: this.getQueue.bind(this),
-              },
-            },
-            // @ts-expect-error wrong type
-            ...args
-          );
-        } catch (e) {
-          console.error(`Error in worker on "${onHandler[0]}" handler.`, e);
-        }
-      });
+              // @ts-expect-error wrong type
+              ...args
+            );
+          } catch (e) {
+            console.error(
+              `Error in worker once "${onceHandler[0]}" handler.`,
+              e
+            );
+          }
+        });
+      }
+
+      this.workers.set(workerCtx.queueName, worker);
+    } catch (e) {
+      console.error(
+        `There was an error while registering the worker for "${workerCtx.queueName}".`,
+        e
+      );
     }
-
-    for (const onceHandler of workerCtx.onceHandlers) {
-      worker.once(onceHandler[0], async (...args: any[]) => {
-        try {
-          return await onceHandler[1](
-            {
-              services: this.serviceRegistry.resolve(),
-              workers: {
-                get: this.getWorker.bind(this),
-              },
-              queues: {
-                get: this.getQueue.bind(this),
-              },
-            },
-            // @ts-expect-error wrong type
-            ...args
-          );
-        } catch (e) {
-          console.error(`Error in worker once "${onceHandler[0]}" handler.`, e);
-        }
-      });
-    }
-
-    this.workers.set(workerCtx.queueName, worker);
   }
 
   getQueue<Q extends Queue>(name: string) {

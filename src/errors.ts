@@ -68,7 +68,7 @@ export function isGenericError<T>(
   return (error as GenericRouteError<T>)[fastifyModularErrorSymbol] === true;
 }
 
-function createErrorResponseOpenAPI(description: string) {
+function createErrorResponseOpenAPI(description: string, errorCode: number) {
   return Type.Object(
     {
       status: Type.String(),
@@ -81,16 +81,24 @@ function createErrorResponseOpenAPI(description: string) {
         })
       ),
     },
-    { description }
+    { description, $id: `ERROR_${errorCode}` }
   );
 }
 
-export const fastifyGenericErrorResponses = {
-  400: createErrorResponseOpenAPI("Bad request, input malformed."),
-  401: createErrorResponseOpenAPI("Unauthorized"),
-  403: createErrorResponseOpenAPI("Forbidden"),
-  405: createErrorResponseOpenAPI("Method not allowed"),
-  500: createErrorResponseOpenAPI("Internal server error"),
+export const fastifyGenericErrorResponsesSchemas = {
+  400: createErrorResponseOpenAPI("Bad request, input malformed.", 400),
+  401: createErrorResponseOpenAPI("Unauthorized", 401),
+  403: createErrorResponseOpenAPI("Forbidden", 403),
+  405: createErrorResponseOpenAPI("Method not allowed", 405),
+  500: createErrorResponseOpenAPI("Internal server error", 500),
+};
+
+export const fastifyGenericErrorResponsesRefs = {
+  400: { $ref: "ERROR_400"},
+  401: { $ref: "ERROR_401"},
+  403: { $ref: "ERROR_403"},
+  405: { $ref: "ERROR_405"},
+  500: { $ref: "ERROR_500"},
 };
 
 export function handleRouteError(e: unknown, reply: FastifyReply) {
