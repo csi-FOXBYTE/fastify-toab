@@ -87,10 +87,6 @@ export const fastifyToab: FastifyPluginAsync<{
     workerRegistry: WorkerRegistry;
   }>;
 }> = async (fastify, { getRegistries }) => {
-  fastify.addHook("onRequest", async (request, reply) => {
-    setRequestContext({ request, reply });
-  });
-
   for (const errorEntry of Object.entries(
     fastifyGenericErrorResponsesSchemas
   )) {
@@ -140,6 +136,8 @@ export const fastifyToab: FastifyPluginAsync<{
             },
             async (request: FastifyRequest, reply: FastifyReply) => {
               try {
+                setRequestContext({ request, reply });
+
                 const ctx = await middlewareChain(
                   {},
                   request,
@@ -219,6 +217,8 @@ export const fastifyToab: FastifyPluginAsync<{
                 },
                 async (request, reply) => {
                   try {
+                    setRequestContext({ request, reply });
+                    
                     const ctx = await middlewareChain(
                       {},
                       request,
