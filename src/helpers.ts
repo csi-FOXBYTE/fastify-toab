@@ -116,8 +116,9 @@ export const fastifyToab: FastifyPluginAsync<{
           const payload = [
             composedPath,
             {
-              ...(route.opts ?? {}),
+              ...route.opts,
               schema: {
+                ...route.opts?.schema,
                 tags: [controller.rootPath.substring(1)],
                 ...(route.body ? { body: route.body } : {}),
                 ...(route.params ? { params: route.params } : {}),
