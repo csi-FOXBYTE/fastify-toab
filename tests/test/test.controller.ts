@@ -27,7 +27,9 @@ const testController = createController()
   )
   .rootPath("/events");
 
-testController.addRoute("GET", "/abc").handler(async (opts) => {});
+testController.addRoute("POST", "/abc").body(Type.Object({ a: Type.String() })).handler(async (opts) => {
+  opts.body
+});
 
 testController
   .addRoute("GET", "/test")

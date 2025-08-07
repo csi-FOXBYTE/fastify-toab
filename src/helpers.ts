@@ -201,7 +201,7 @@ export const fastifyToab: FastifyPluginAsync<{
                   schema: {
                     ...payload[1].schema,
                     response: {
-                      ...(payload[1].schema?.response ?? {}),
+                      ...payload[1].schema?.response,
                       200: {
                         description: "SSE",
                         content: {

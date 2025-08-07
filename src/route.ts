@@ -20,7 +20,7 @@ export type RouteCtx = {
   ) => Method extends "SSE" ? AsyncIterable<unknown> : Promise<unknown>;
 };
 
-export type RouteHandler<Context, QueryString, Params, Output, Headers> =
+export type RouteHandler<Context, Body, QueryString, Params, Output, Headers> =
   (opts: {
     request: FastifyRequest;
     reply: FastifyReply;
@@ -118,7 +118,7 @@ export interface RouteC<
   handler: (
     fn: Method extends "SSE"
       ? SSERouteHandler<Context, QueryString, Params, Output, Headers>
-      : RouteHandler<Context, QueryString, Params, Output, Headers>,
+      : RouteHandler<Context, Body, QueryString, Params, Output, Headers>,
     opts?: RouteShorthandOptions
   ) => RouteCtx;
   params: <P extends TObject>(
