@@ -208,6 +208,8 @@ ${workersNameAndPath
   .join("\n")}
   workerRegistryRef.current = workerRegistry;
 
+  await workerRegistry.resumeQueues();
+
   const controllerRegistry = new ControllerRegistry(serviceRegistry);
 ${controllersNameAndPath
   .map(({ name }) => `  controllerRegistry.register(${name});`)

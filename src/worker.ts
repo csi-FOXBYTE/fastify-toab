@@ -87,6 +87,8 @@ export class WorkerRegistry {
         connection: workerCtx.connection,
       });
 
+      await queue.pause();
+
       this.queues.set(queue.name, queue);
 
       for (const jobScheduler of workerCtx.jobSchedulers) {
@@ -187,6 +189,12 @@ export class WorkerRegistry {
         `There was an error while registering the worker for "${workerCtx.queueName}".`,
         e
       );
+    }
+  }
+
+  async resumeQueues() {
+    for (const queue of this.queues.values()) {
+      await queue.resume();
     }
   }
 
