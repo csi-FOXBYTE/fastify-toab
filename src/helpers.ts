@@ -219,7 +219,7 @@ export const fastifyToab: FastifyPluginAsync<{
                 async (request, reply) => {
                   try {
                     setRequestContext({ request, reply });
-                    
+
                     const ctx = await middlewareChain(
                       {},
                       request,
