@@ -266,7 +266,7 @@ export interface WorkerC<
         url: string | URL
       ) => WorkerCtx<Queue<T, R, string>, Worker<T, R, string>, SJ>
     : never;
-  upsertJobScheduler: J extends Job<infer T, infer R, infer N>
+  upsertJobScheduler: J extends Job<infer T, infer _, infer N>
     ? (
         jobSchedulerId: string,
         repeatOpts: Omit<RepeatOptions, "key">,

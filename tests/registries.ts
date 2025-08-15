@@ -15,7 +15,6 @@ export async function getRegistries(dontInitializeWorkers?: boolean) {
 
   const serviceRegistry = new ServiceRegistry(workerRegistryRef);
 
-
   const workerRegistry = new WorkerRegistry(serviceRegistry);
 
   workerRegistryRef.current = workerRegistry;
@@ -23,7 +22,6 @@ export async function getRegistries(dontInitializeWorkers?: boolean) {
   await workerRegistry.resumeQueues();
 
   const controllerRegistry = new ControllerRegistry(serviceRegistry);
-
 
   return { controllerRegistry, serviceRegistry, workerRegistry };
 }

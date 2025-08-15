@@ -19,6 +19,36 @@ import {
   GenericRouteError,
   isGenericError,
 } from "./errors";
+import { Type, TSchema } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
+
+export function SSEOf<T extends TSchema>(
+  schema: T,
+  example?: unknown
+): TSchema {
+  const ex = example ?? Value.Create(schema as any);
+
+  const msg = `data: ${JSON.stringify(ex)}`;
+  const ping = `:ok`;
+  const err = `error: ${JSON.stringify({
+    code: "INTERNAL_ERROR",
+    message: "Something went wrong",
+  })}`;
+
+  return {
+    description:
+      'Server-Sent Events stream. Each message is UTF-8 text containing lines like "data: <JSON>".',
+    content: {
+      "text/event-stream": {
+        schema: Type.String({
+          examples: [msg, ping, err],
+          description:
+            'Server-Sent Events stream. Each message is UTF-8 text containing lines like "data: <JSON>".',
+        }),
+      },
+    },
+  } as unknown as TSchema;
+}
 
 function handleRouteError(
   e: unknown,
@@ -202,17 +232,7 @@ export const fastifyToab: FastifyPluginAsync<{
                     ...payload[1].schema,
                     response: {
                       ...payload[1].schema?.response,
-                      200: {
-                        description: "SSE",
-                        content: {
-                          "text/event-stream": {
-                            schema: {
-                              type: "string",
-                              example: 'data: {"mesage":"hello"}\n\n',
-                            },
-                          },
-                        },
-                      },
+                      200: SSEOf(route.output ?? Type.Void()),
                     },
                   },
                 },
