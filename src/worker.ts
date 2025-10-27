@@ -45,17 +45,17 @@ export interface WorkerCtx<
   connection: ConnectionOptions;
   options?: Omit<WorkerOptions, "connection">;
   processor:
-    | string
-    | URL
-    | ((
-        job: Job<any, any, any>,
-        ctx: {
-          services: ReturnType<ServiceRegistry["resolve"]>;
-          workers: WorkerContainer;
-          queues: QueueContainer;
-        },
-        token?: string
-      ) => Promise<any>);
+  | string
+  | URL
+  | ((
+    job: Job<any, any, any>,
+    ctx: {
+      services: ReturnType<ServiceRegistry["resolve"]>;
+      workers: WorkerContainer;
+      queues: QueueContainer;
+    },
+    token?: string
+  ) => Promise<any>);
   queue: Q; // only type
   worker: W; // only type
   job: J; // only type
@@ -107,31 +107,31 @@ export class WorkerRegistry {
         workerCtx.queueName,
         typeof workerCtx.processor === "function"
           ? async (job, token) => {
-              if (typeof workerCtx.processor !== "function")
-                throw new Error(
-                  "Processor was not a function but was expected to be one."
-                );
+            if (typeof workerCtx.processor !== "function")
+              throw new Error(
+                "Processor was not a function but was expected to be one."
+              );
 
-              try {
-                const result = await workerCtx.processor(
-                  job,
-                  {
-                    services: this.serviceRegistry.resolve(),
-                    workers: {
-                      get: this.getWorker.bind(this),
-                    },
-                    queues: {
-                      get: this.getQueue.bind(this),
-                    },
+            try {
+              const result = await workerCtx.processor(
+                job,
+                {
+                  services: this.serviceRegistry.resolve(),
+                  workers: {
+                    get: this.getWorker.bind(this),
                   },
-                  token
-                );
-                return result;
-              } catch (e) {
-                console.error(`Error in processor ${workerCtx.queueName}`, e);
-                throw e;
-              }
+                  queues: {
+                    get: this.getQueue.bind(this),
+                  },
+                },
+                token
+              );
+              return result;
+            } catch (e) {
+              console.error(`Error in processor ${workerCtx.queueName}`, e);
+              throw e;
             }
+          }
           : workerCtx.processor,
         { ...workerCtx.options, connection: workerCtx.connection }
       );
@@ -246,69 +246,69 @@ export interface WorkerC<
     connection: ConnectionOptions
   ) => Pick<WorkerC<Omitter | "connection", J, SJ>, "processor">;
   processor: J extends Job<infer T, infer R, infer N>
-    ? (
-        processor: (
-          job: Job<T, R, N>,
-          ctx: {
-            services: ServiceContainer;
-            workers: {
-              get: WorkerRegistry["getWorker"];
-            };
-            queues: {
-              get: WorkerRegistry["getQueue"];
-            };
-          },
-          token?: string
-        ) => Promise<R>
-      ) => WorkerCtx<Queue<T, R, N>, Worker<T, R, string>, J>
-    : SJ extends SandboxedJob<infer T, infer R>
-    ? (
-        url: string | URL
-      ) => WorkerCtx<Queue<T, R, string>, Worker<T, R, string>, SJ>
-    : never;
+  ? (
+    processor: (
+      job: Job<T, R, N>,
+      ctx: {
+        services: ServiceContainer;
+        workers: {
+          get: WorkerRegistry["getWorker"];
+        };
+        queues: {
+          get: WorkerRegistry["getQueue"];
+        };
+      },
+      token?: string
+    ) => Promise<R>
+  ) => WorkerCtx<Queue<T, R, N>, Worker<T, R, string>, J>
+  : SJ extends SandboxedJob<infer T, infer R>
+  ? (
+    url: string | URL
+  ) => WorkerCtx<Queue<T, R, string>, Worker<T, R, string>, SJ>
+  : never;
   upsertJobScheduler: J extends Job<infer T, infer _, infer N>
-    ? (
-        jobSchedulerId: string,
-        repeatOpts: Omit<RepeatOptions, "key">,
-        jobTemplate?: {
-          name?: N;
-          data?: T;
-          opts?: JobSchedulerTemplateOptions;
-        }
-      ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
-    : SJ extends SandboxedJob<infer T>
-    ? (
-        jobSchedulerId: string,
-        repeatOpts: Omit<RepeatOptions, "key">,
-        jobTemplate?: {
-          name?: string;
-          data?: T;
-          opts?: JobSchedulerTemplateOptions;
-        }
-      ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
-    : never;
+  ? (
+    jobSchedulerId: string,
+    repeatOpts: Omit<RepeatOptions, "key">,
+    jobTemplate?: {
+      name?: N;
+      data?: T;
+      opts?: JobSchedulerTemplateOptions;
+    }
+  ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
+  : SJ extends SandboxedJob<infer T>
+  ? (
+    jobSchedulerId: string,
+    repeatOpts: Omit<RepeatOptions, "key">,
+    jobTemplate?: {
+      name?: string;
+      data?: T;
+      opts?: JobSchedulerTemplateOptions;
+    }
+  ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
+  : never;
   on: J extends Job<infer T, infer R, infer N>
-    ? <Key extends keyof WorkerListener<T, R, N>>(
-        event: Key,
-        listener: WithOpts<WorkerListener<T, R, N>[Key]>
-      ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
-    : SJ extends SandboxedJob<infer T, infer R>
-    ? <Key extends keyof WorkerListener<T, R, string>>(
-        event: Key,
-        listener: WithOpts<WorkerListener<T, R>[Key]>
-      ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
-    : never;
+  ? <Key extends keyof WorkerListener<T, R, N>>(
+    event: Key,
+    listener: WithOpts<WorkerListener<T, R, N>[Key]>
+  ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
+  : SJ extends SandboxedJob<infer T, infer R>
+  ? <Key extends keyof WorkerListener<T, R, string>>(
+    event: Key,
+    listener: WithOpts<WorkerListener<T, R>[Key]>
+  ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
+  : never;
   once: J extends Job<infer T, infer R, infer N>
-    ? <Key extends keyof WorkerListener<T, R, N>>(
-        event: Key,
-        listener: WithOpts<WorkerListener<T, R, N>[Key]>
-      ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
-    : SJ extends SandboxedJob<infer T, infer R>
-    ? <Key extends keyof WorkerListener<T, R, string>>(
-        event: Key,
-        listener: WithOpts<WorkerListener<T, R>[Key]>
-      ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
-    : never;
+  ? <Key extends keyof WorkerListener<T, R, N>>(
+    event: Key,
+    listener: WithOpts<WorkerListener<T, R, N>[Key]>
+  ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
+  : SJ extends SandboxedJob<infer T, infer R>
+  ? <Key extends keyof WorkerListener<T, R, string>>(
+    event: Key,
+    listener: WithOpts<WorkerListener<T, R>[Key]>
+  ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
+  : never;
 }
 
 export function createWorker<Omitter extends string = "">(): Pick<

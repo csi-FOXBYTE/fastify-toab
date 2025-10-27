@@ -1,6 +1,6 @@
 {
   "name": "@csi-foxbyte/fastify-toab",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Tobias Ganzhorn @Foxbyte",
   "repository": {
     "type": "git",
@@ -13,6 +13,12 @@
   "description": "Fastify Toab is a lightweight architectural layer for Fastify that introduces a clean, structured way to organize applications using controllers and services — inspired by frameworks like trpc.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "type": "module",
   "scripts": {
     "build": "tsup",

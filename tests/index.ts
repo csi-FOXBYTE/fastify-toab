@@ -6,15 +6,12 @@ import { getRegistries } from "./registries";
 
 const fastify = Fastify({});
 
-fastify.register(fastifySwagger, { 
-
-});
-fastify.register(fastifySwaggerUi, { 
-  routePrefix: "/docs"
+fastify.register(fastifySwagger, {});
+fastify.register(fastifySwaggerUi, {
+  routePrefix: "/docs",
 });
 
 fastify.register(fastifyToab, { getRegistries });
-
 
 (async () => {
   await fastify.ready();

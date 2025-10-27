@@ -1,7 +1,7 @@
 import { Argument, Command, Option } from "commander";
 import { writeFile, mkdir, readFile } from "fs/promises";
 import Handlebars from "handlebars";
-import path from "path";
+import path, { sep } from "path";
 import glob from "tiny-glob";
 
 const MiddlewareTemplate =
@@ -180,13 +180,15 @@ import {
   function mapIdAndPath(path: string) {
     return {
       path,
-      id: "p_" + crypto.randomUUID().split("-").join(""),
+      id: path.split(sep).join("_").split(".").slice(0, -1).join("$"),
     };
   }
 
   const servicesNameAndPath = services.map(mapIdAndPath);
   const workersNameAndPath = workers.map(mapIdAndPath);
   const controllersNameAndPath = controllers.map(mapIdAndPath);
+
+  generated += "\n"
 
   generated += servicesNameAndPath
     .map(mapImport)

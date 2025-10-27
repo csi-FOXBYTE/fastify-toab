@@ -40,6 +40,7 @@ export type InferService<S> = S extends {
 
 const resolveLocalStorage = new AsyncLocalStorage<{
   visitedSet: Set<string>;
+  resolutionStack: Array<{ name: string; scope: ServiceScope }>;
 }>();
 
 export class ServiceRegistry {
@@ -87,7 +88,7 @@ export class ServiceRegistry {
         let store = resolveLocalStorage.getStore();
 
         if (!store) {
-          store = { visitedSet: new Set() };
+          store = { visitedSet: new Set(), resolutionStack: [] };
           resolveLocalStorage.enterWith(store);
         }
 
@@ -102,6 +103,14 @@ export class ServiceRegistry {
         }
 
         const { factory, scope } = definition;
+
+        const topOfStack =
+          store.resolutionStack[store.resolutionStack.length - 1];
+        if (scope === "REQUEST" && topOfStack?.scope === "SINGLETON") {
+          throw new Error(
+            `Request scoped service "${name}" cannot be resolved from singleton service "${topOfStack.name}".`
+          );
+        }
 
         const cache =
           scope === "SINGLETON"
@@ -118,27 +127,46 @@ export class ServiceRegistry {
           );
         }
 
-        let instance: any;
-
+        store.resolutionStack.push({ name, scope });
         resolving.add(name);
-        if (scope === "REQUEST") {
-          instance = await factory({
-            services: container,
-            workers: { get: this.workerRegistryRef.current.getWorker.bind(this.workerRegistryRef.current) },
-            queues: { get: this.workerRegistryRef.current.getQueue.bind(this.workerRegistryRef.current) },
-            ...getRequestContext(),
-          });
-        } else {
-          instance = await factory({
-            services: container,
-            workers: { get: this.workerRegistryRef.current.getWorker.bind(this.workerRegistryRef.current) },
-            queues: { get: this.workerRegistryRef.current.getQueue.bind(this.workerRegistryRef.current) },
-          });
+        try {
+          let instance: any;
+          if (scope === "REQUEST") {
+            instance = await factory({
+              services: container,
+              workers: {
+                get: this.workerRegistryRef.current.getWorker.bind(
+                  this.workerRegistryRef.current
+                ),
+              },
+              queues: {
+                get: this.workerRegistryRef.current.getQueue.bind(
+                  this.workerRegistryRef.current
+                ),
+              },
+              ...getRequestContext(),
+            });
+          } else {
+            instance = await factory({
+              services: container,
+              workers: {
+                get: this.workerRegistryRef.current.getWorker.bind(
+                  this.workerRegistryRef.current
+                ),
+              },
+              queues: {
+                get: this.workerRegistryRef.current.getQueue.bind(
+                  this.workerRegistryRef.current
+                ),
+              },
+            });
+          }
+          cache.set(name, instance);
+          return instance;
+        } finally {
+          store.resolutionStack.pop();
+          resolving.delete(name);
         }
-        resolving.delete(name);
-
-        cache.set(name, instance);
-        return instance;
       },
     };
 
