@@ -115,7 +115,7 @@ import { InferService, ServiceContainer, WorkerContainer, QueueContainer } from 
   }
 
   for (const worker of workers) {
-    const componentName = worker.split("\\").slice(-3)[0];
+    const componentName = worker.split(sep).slice(-3)[0];
 
     const workerName = worker
       .split(".")
@@ -173,7 +173,7 @@ import {
       .split(".")
       .slice(0, -1)
       .join(".")
-      .split("\\")
+      .split(sep)
       .join("/")}${emitJsWithFileEnding ? ".js" : ""}";`;
   }
 
