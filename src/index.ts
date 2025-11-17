@@ -16,3 +16,4 @@ import { fastifyToab } from "./helpers";
 export { fastifyToab };
 export default fastifyToab;
 export { GenericRouteError, isGenericError } from "./errors";
+export { getRequestContext, setRequestContext } from "./context";
