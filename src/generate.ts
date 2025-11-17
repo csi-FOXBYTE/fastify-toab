@@ -199,17 +199,23 @@ import {
   generated += "\n";
 
   generated += `
+let serviceRegistry: ServiceRegistry | null = null;
+let workerRegistry: WorkerRegistry | null = null;
+let controllerRegistry: ControllerRegistry | null = null;
+
 export async function getRegistries(dontInitializeWorkers?: boolean) {
+  if (serviceRegistry !== null && workerRegistry !== null && controllerRegistry !== null) return { controllerRegistry, serviceRegistry, workerRegistry };
+
   let workerRegistryRef: { current: WorkerRegistry | null } = {
     current: null,
   };
 
-  const serviceRegistry = new ServiceRegistry(workerRegistryRef);
+  serviceRegistry = new ServiceRegistry(workerRegistryRef);
 ${servicesNameAndPath
   .map(({ id }) => `  serviceRegistry.register(${id});`)
   .join("\n")}
 
-  const workerRegistry = new WorkerRegistry(serviceRegistry);
+  workerRegistry = new WorkerRegistry(serviceRegistry);
 ${workersNameAndPath
   .map(
     ({ id }) => `  await workerRegistry.register(${id}, dontInitializeWorkers);`
@@ -219,7 +225,7 @@ ${workersNameAndPath
 
   await workerRegistry.resumeQueues();
 
-  const controllerRegistry = new ControllerRegistry(serviceRegistry);
+  controllerRegistry = new ControllerRegistry(serviceRegistry);
 ${controllersNameAndPath
   .map(({ id }) => `  controllerRegistry.register(${id});`)
   .join("\n")}
