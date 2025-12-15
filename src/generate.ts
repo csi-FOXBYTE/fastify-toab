@@ -80,6 +80,12 @@ const {{lname}}Service = createService("{{lname}}", async () => {
 export default {{lname}}Service;
 `);
 
+const TestTemplate = Handlebars.compile(`
+import { describe, it } from "node:test";
+
+
+`);
+
 async function createInternals(workdir: string) {
   const services = await glob("**/*.service.ts", { cwd: workdir });
   const workers = await glob("**/*.worker.ts", { cwd: workdir });
@@ -372,6 +378,7 @@ program
         const cname = capitalize(nameOrParent);
         const lname = uncapitalize(nameOrParent);
         const template = ServiceTemplate({ cname, lname });
+
         await writeFile(
           path.join(workdir, nameOrParent, `${lname}.service.ts`),
           template

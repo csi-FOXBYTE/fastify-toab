@@ -3,8 +3,9 @@ export {
   type WorkerContainer,
   createWorker,
   WorkerRegistry,
+  WorkerC,
 } from "./worker";
-export { ControllerRegistry, createController } from "./controller";
+export { ControllerRegistry, createController, ControllerC } from "./controller";
 export {
   type InferService,
   type ServiceContainer,

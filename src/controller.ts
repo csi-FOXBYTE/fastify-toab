@@ -11,7 +11,8 @@ export type HTTPMethods =
   | "POST"
   | "DELETE"
   | "PUT"
-  | "PATCH";
+  | "PATCH"
+  | "ALL";
 
 export type HandlerOpts = {
   request: FastifyRequest;
@@ -43,7 +44,7 @@ export type ControllerCtx = {
   ) => Promise<unknown>)[];
 };
 
-interface ControllerC<Context extends Record<string, unknown>> {
+export interface ControllerC<Context extends Record<string, unknown>> {
   rootPath: (
     rootPath: `/${string}`
   ) => Pick<ControllerC<Context>, "addRoute" | "finish">;
@@ -58,7 +59,7 @@ interface ControllerC<Context extends Record<string, unknown>> {
     path: `/${string}`
   ) => Omit<
     RouteC<
-      M extends "GET" | "HEAD" | "SSE" ? "body" : "",
+      M extends "GET" | "HEAD" | "SSE" | "ALL" ? "body" : "",
       unknown,
       unknown,
       unknown,
@@ -67,7 +68,7 @@ interface ControllerC<Context extends Record<string, unknown>> {
       M,
       unknown
     >,
-    M extends "GET" | "HEAD" | "SSE" ? "body" : ""
+    M extends "GET" | "HEAD" | "SSE" | "ALL" ? "body" : ""
   >;
   /**
    * DO NOT CALL THIS MANUALLY!

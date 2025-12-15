@@ -1,6 +1,6 @@
 {
   "name": "@csi-foxbyte/fastify-toab",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "author": "Tobias Ganzhorn @Foxbyte",
   "repository": {
     "type": "git",
@@ -23,7 +23,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/main.ts",
-    "test": "npx swc tests -d . && node --test",
+    "test": "globstar -- node --import tsx --test \"tests/**/*.test.ts\"",
     "prepack": "tsup"
   },
   "keywords": [
@@ -48,6 +48,8 @@
     "@sinclair/typebox": "^0.34.37",
     "@types/node": "^24.0.13",
     "fastify": "^5.4.0",
+    "globstar": "^1.0.0",
+    "ts-node": "^10.9.2",
     "tsup": "^8.5.0",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"

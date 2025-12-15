@@ -1,4 +1,3 @@
-
 import { createService } from "@csi-foxbyte/fastify-toab";
 
 const testService = createService("test", async () => {

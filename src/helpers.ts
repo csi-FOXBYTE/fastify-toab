@@ -208,6 +208,9 @@ export const fastifyToab: FastifyPluginAsync<{
             case "GET":
               fastify.get(...payload);
               break;
+            case "ALL":
+              fastify.all(...payload);
+              break;
             case "PATCH":
               fastify.patch(...payload);
               break;
