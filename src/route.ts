@@ -16,7 +16,7 @@ export type RouteCtx = {
   headers?: TSchema;
   params?: TObject;
   handler: <Method extends HTTPMethods>(
-    opts: HandlerOpts
+    opts: HandlerOpts,
   ) => Method extends "SSE" ? AsyncIterable<unknown> : Promise<unknown>;
 };
 
@@ -53,10 +53,10 @@ export interface RouteC<
   Params,
   Context,
   Method extends HTTPMethods,
-  Headers
+  Headers,
 > {
   body: <B extends TSchema>(
-    body: B
+    body: B,
   ) => Omit<
     RouteC<
       "body" | Omitter,
@@ -71,7 +71,7 @@ export interface RouteC<
     "body" | Omitter
   >;
   headers: <H extends TSchema>(
-    headers: H
+    headers: H,
   ) => Omit<
     RouteC<
       "headers" | Omitter,
@@ -81,12 +81,12 @@ export interface RouteC<
       Params,
       Context,
       Method,
-      Headers
+      H
     >,
     "headers" | Omitter
   >;
   output: <O extends TSchema>(
-    output: O
+    output: O,
   ) => Omit<
     RouteC<
       "output" | Omitter,
@@ -101,7 +101,7 @@ export interface RouteC<
     "output" | Omitter
   >;
   querystring: <Q extends TObject>(
-    querystring: Q
+    querystring: Q,
   ) => Omit<
     RouteC<
       "querystring" | Omitter,
@@ -119,10 +119,10 @@ export interface RouteC<
     fn: Method extends "SSE"
       ? SSERouteHandler<Context, QueryString, Params, Output, Headers>
       : RouteHandler<Context, Body, QueryString, Params, Output, Headers>,
-    opts?: RouteShorthandOptions
+    opts?: RouteShorthandOptions,
   ) => RouteCtx;
   params: <P extends TObject>(
-    params: P
+    params: P,
   ) => Omit<
     RouteC<
       "params" | Omitter,
@@ -146,9 +146,9 @@ export function createRoute<
   Params,
   Context,
   Method extends HTTPMethods,
-  Headers
+  Headers,
 >(
-  ctx: RouteCtx
+  ctx: RouteCtx,
 ): RouteC<
   Omitter,
   Body,
