@@ -16,8 +16,7 @@ import { QueueContainer, WorkerContainer, WorkerRegistry } from "./worker";
 import {
   fastifyGenericErrorResponsesRefs,
   fastifyGenericErrorResponsesSchemas,
-  GenericRouteError,
-  isGenericError,
+  handleRouteError as sendGenericRouteError,
 } from "./errors";
 import { Type, TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
@@ -50,29 +49,66 @@ export function SSEOf<T extends TSchema>(
   } as unknown as TSchema;
 }
 
-function handleRouteError(
+export type FastifyToabRouteErrorContext = {
+  error: unknown;
+  fastify: FastifyInstance;
+  composedPath: string;
+  request: FastifyRequest;
+  reply: FastifyReply;
+};
+
+export type FastifyToabRouteErrorHandler = (
+  ctx: FastifyToabRouteErrorContext
+) => Promise<void> | void;
+
+export type FastifyToabOptions = {
+  getRegistries: () => Promise<{
+    controllerRegistry: ControllerRegistry;
+    serviceRegistry: ServiceRegistry;
+    workerRegistry: WorkerRegistry;
+  }>;
+  globalMiddlewares?: ControllerCtx["middlewares"];
+  onRouteError?: FastifyToabRouteErrorHandler;
+  includeGenericErrorResponses?: boolean;
+};
+
+export const genericRouteErrorHandler: FastifyToabRouteErrorHandler = ({
+  error,
+  reply,
+}) => {
+  sendGenericRouteError(error, reply);
+};
+
+function toError(e: unknown): Error {
+  if (e instanceof Error) return e;
+  if (typeof e === "string") return new Error(e);
+
+  return new Error(`Unexpected non-error value thrown: ${String(e)}`);
+}
+
+async function handleRouteError(
   e: unknown,
   fastify: FastifyInstance,
   composedPath: string,
-  reply: FastifyReply
+  request: FastifyRequest,
+  reply: FastifyReply,
+  onRouteError?: FastifyToabRouteErrorHandler
 ) {
   fastify.log.error(e, `Error in ${composedPath}.`);
-  if (isGenericError(e)) {
-    e.send(reply);
-    return;
+
+  if (onRouteError) {
+    await onRouteError({
+      error: e,
+      fastify,
+      composedPath,
+      request,
+      reply,
+    });
   }
-  if (e instanceof Error) {
-    GenericRouteError.fromError(
-      e,
-      "INTERNAL_ERROR",
-      "Unknown internal error."
-    ).send(reply);
-    return;
-  }
-  new GenericRouteError("INTERNAL_ERROR", "Unknown internal error.", {
-    error: String(e),
-  }).send(reply);
-  return;
+
+  if (reply.sent) return;
+
+  throw toError(e);
 }
 
 function composeMiddlewares(
@@ -110,18 +146,26 @@ function composeMiddlewares(
   };
 }
 
-export const fastifyToab: FastifyPluginAsync<{
-  getRegistries: () => Promise<{
-    controllerRegistry: ControllerRegistry;
-    serviceRegistry: ServiceRegistry;
-    workerRegistry: WorkerRegistry;
-  }>;
-}> = async (fastify, { getRegistries }) => {
-  for (const errorEntry of Object.entries(
-    fastifyGenericErrorResponsesSchemas
-  )) {
-    fastify.addSchema(errorEntry[1]);
+export const fastifyToab: FastifyPluginAsync<FastifyToabOptions> = async (
+  fastify,
+  {
+    getRegistries,
+    globalMiddlewares = [],
+    onRouteError,
+    includeGenericErrorResponses = false,
   }
+) => {
+  if (includeGenericErrorResponses) {
+    for (const errorEntry of Object.entries(
+      fastifyGenericErrorResponsesSchemas
+    )) {
+      fastify.addSchema(errorEntry[1]);
+    }
+  }
+
+  const genericErrorResponses = includeGenericErrorResponses
+    ? fastifyGenericErrorResponsesRefs
+    : {};
 
   const { controllerRegistry, serviceRegistry, workerRegistry } =
     await getRegistries();
@@ -131,7 +175,10 @@ export const fastifyToab: FastifyPluginAsync<{
   for (const controller of controllerRegistry.controllers.values()) {
     let middlewareChain: ReturnType<typeof composeMiddlewares>;
     try {
-      middlewareChain = composeMiddlewares(controller.middlewares);
+      middlewareChain = composeMiddlewares([
+        ...globalMiddlewares,
+        ...controller.middlewares,
+      ]);
     } catch (e) {
       fastify.log.error(e, "Error in middleware chain!");
       throw e;
@@ -157,11 +204,11 @@ export const fastifyToab: FastifyPluginAsync<{
                 response: route.output
                   ? {
                       200: route.output,
-                      ...fastifyGenericErrorResponsesRefs,
+                      ...genericErrorResponses,
                     }
                   : {
                       204: {},
-                      ...fastifyGenericErrorResponsesRefs,
+                      ...genericErrorResponses,
                     },
               },
             },
@@ -199,7 +246,14 @@ export const fastifyToab: FastifyPluginAsync<{
 
                 return result;
               } catch (e) {
-                return handleRouteError(e, fastify, composedPath, reply);
+                return handleRouteError(
+                  e,
+                  fastify,
+                  composedPath,
+                  request,
+                  reply,
+                  onRouteError
+                );
               }
             },
           ] as const;
@@ -293,7 +347,14 @@ export const fastifyToab: FastifyPluginAsync<{
                     clearInterval(pingInterval);
                     reply.raw.end();
                   } catch (e) {
-                    return handleRouteError(e, fastify, composedPath, reply);
+                    return handleRouteError(
+                      e,
+                      fastify,
+                      composedPath,
+                      request,
+                      reply,
+                      onRouteError
+                    );
                   }
                 }
               );

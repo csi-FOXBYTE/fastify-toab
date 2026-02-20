@@ -1,11 +1,15 @@
 export {
   type QueueContainer,
   type WorkerContainer,
+  type WorkerC,
   createWorker,
   WorkerRegistry,
-  WorkerC,
 } from "./worker";
-export { ControllerRegistry, createController, ControllerC } from "./controller";
+export {
+  type ControllerC,
+  ControllerRegistry,
+  createController,
+} from "./controller";
 export {
   type InferService,
   type ServiceContainer,
@@ -14,7 +18,13 @@ export {
 } from "./service";
 export { createMiddleware } from "./middleware";
 import { fastifyToab } from "./helpers";
-export { fastifyToab };
+export {
+  type FastifyToabOptions,
+  type FastifyToabRouteErrorContext,
+  type FastifyToabRouteErrorHandler,
+  fastifyToab,
+  genericRouteErrorHandler,
+} from "./helpers";
 export default fastifyToab;
 export { GenericRouteError, isGenericError } from "./errors";
 export { getRequestContext, setRequestContext } from "./context";

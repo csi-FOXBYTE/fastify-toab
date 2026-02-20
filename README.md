@@ -65,12 +65,18 @@ Register the plugin in your Fastify application:
 
 ```ts
 import Fastify from "fastify";
-import fastifyToab from "@csi-foxbyte/fastify-toab";
+import fastifyToab, { genericRouteErrorHandler } from "@csi-foxbyte/fastify-toab";
 import { getRegistries } from "./registries.js";
 
 const fastify = Fastify();
 
-fastify.register(fastifyToab, { getRegistries });
+fastify.register(fastifyToab, {
+  getRegistries,
+  // Optional:
+  // globalMiddlewares: [authOrTracingMiddleware],
+  // includeGenericErrorResponses: true,
+  // onRouteError: genericRouteErrorHandler,
+});
 
 (async () => {
   await fastify.ready();
@@ -83,6 +89,10 @@ fastify.register(fastifyToab, { getRegistries });
 ```
 
 * **getRegistries**: Function that returns all registered controllers, services, middleware, and workers (auto-generated).
+* **globalMiddlewares**: Optional middleware list applied to every route in this Fastify instance.
+* **onRouteError**: Optional callback to fully customize route error handling.
+* **includeGenericErrorResponses**: Optional flag to add default GenericRouteError OpenAPI schemas.
+* By default, errors are rethrown to Fastify (no automatic GenericRouteError wrapping).
 
 ## Controller
 
@@ -160,7 +170,7 @@ export const authMiddleware = createMiddleware(async ({ ctx, services }, next) =
 ```
 
 * **createMiddleware**: Wraps route handlers to provide shared logic and context.
-* **GenericRouteError**: Standardized error for HTTP responses.
+* **GenericRouteError**: Optional standardized error shape when you choose to use it.
 
 ## Worker
 
