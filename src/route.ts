@@ -5,8 +5,8 @@ import type {
   FastifyRequest,
   FastifyReply,
 } from "fastify";
-import { HandlerOpts } from "./controller";
-import { ServiceContainer } from "./service";
+import { HandlerOpts } from "./controller.js";
+import { ServiceContainer } from "./service.js";
 
 export type RouteCtx = {
   body?: TSchema;

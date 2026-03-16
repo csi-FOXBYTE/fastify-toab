@@ -7,8 +7,8 @@ import {
   ServiceRegistry,
   WorkerRegistry,
 } from "@csi-foxbyte/fastify-toab";
-import test_test$service from "./test/test.service.js";
-import test_test$controller from "./test/test.controller.js";
+import test_test$service from "../test/test.service.js";
+import test_test$controller from "../test/test.controller.js";
 
 let serviceRegistry: ServiceRegistry | null = null;
 let workerRegistry: WorkerRegistry | null = null;

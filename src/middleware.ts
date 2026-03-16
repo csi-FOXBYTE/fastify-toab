@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { QueueContainer, WorkerContainer } from "./worker";
-import { ServiceContainer } from "./service";
+import { QueueContainer, WorkerContainer } from "./worker.js";
+import { ServiceContainer } from "./service.js";
 
 export function createMiddleware<
   NewContext extends Record<string, unknown>,

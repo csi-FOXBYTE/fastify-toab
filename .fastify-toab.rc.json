@@ -1,5 +1,0 @@
-{
-  "$schema": "https://raw.githubusercontent.com/csi-FOXBYTE/fastify-toab/refs/heads/main/fastify-toab.rc.schema.json",
-  "workdir": "tests",
-  "emitWithJsEnding": true
-}

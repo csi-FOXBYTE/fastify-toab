@@ -10,7 +10,7 @@ import {
   WorkerListener,
   WorkerOptions,
 } from "bullmq";
-import { ServiceContainer, ServiceRegistry } from "./service";
+import { ServiceContainer, ServiceRegistry } from "./service.js";
 
 export interface WorkerContainer {
   get: WorkerRegistry["getWorker"];

@@ -1,0 +1,9 @@
+
+import { startServer } from "@csi-foxbyte/fastify-toab";
+
+process.env.NODE_ENV = "production";
+
+startServer(import.meta.resolve("registries.js"), import.meta.resolve("../instrumentation.js")).catch((err) => {
+    console.error(err);
+    process.exit(1)
+});

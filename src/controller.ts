@@ -1,8 +1,8 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { createMiddleware } from "./middleware";
-import { createRoute, RouteC, RouteCtx } from "./route";
-import { ServiceContainer, ServiceRegistry } from "./service";
-import { QueueContainer, WorkerContainer } from "./worker";
+import { createMiddleware } from "./middleware.js";
+import { createRoute, RouteC, RouteCtx } from "./route.js";
+import { ServiceContainer, ServiceRegistry } from "./service.js";
+import { QueueContainer, WorkerContainer } from "./worker.js";
 
 export type HTTPMethods =
   | "SSE"

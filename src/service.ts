@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { getRequestContext } from "./context";
-import { QueueContainer, WorkerContainer, WorkerRegistry } from "./worker";
+import { getRequestContext } from "./context.js";
+import { QueueContainer, WorkerContainer, WorkerRegistry } from "./worker.js";
 import { AsyncLocalStorage } from "async_hooks";
 
 type ServiceScope = "REQUEST" | "SINGLETON";
@@ -9,17 +9,17 @@ type ServiceBuildTime = "DYNAMIC" | "INSTANT";
 type ServiceFactory<T, S extends ServiceScope> = (
   opts: S extends "SINGLETON"
     ? {
-        services: ServiceContainer;
-        workers: WorkerContainer;
-        queues: QueueContainer;
-      }
+      services: ServiceContainer;
+      workers: WorkerContainer;
+      queues: QueueContainer;
+    }
     : {
-        services: ServiceContainer;
-        request: FastifyRequest;
-        reply: FastifyReply;
-        workers: WorkerContainer;
-        queues: QueueContainer;
-      }
+      services: ServiceContainer;
+      request: FastifyRequest;
+      reply: FastifyReply;
+      workers: WorkerContainer;
+      queues: QueueContainer;
+    }
 ) => Promise<T>;
 type Service<T, S extends ServiceScope> = {
   name: string;

@@ -1,5 +1,5 @@
 import type { FastifyReply } from "fastify";
-import { Type } from "@sinclair/typebox";
+import { Type, type TSchema } from "@sinclair/typebox";
 
 type ErrorStatis =
   | "BAD_REQUEST"
@@ -85,7 +85,7 @@ function createErrorResponseOpenAPI(description: string, errorCode: number) {
   );
 }
 
-export const fastifyGenericErrorResponsesSchemas = {
+export const fastifyGenericErrorResponsesSchemas: Record<number, TSchema> = {
   400: createErrorResponseOpenAPI("Bad request, input malformed.", 400),
   401: createErrorResponseOpenAPI("Unauthorized", 401),
   403: createErrorResponseOpenAPI("Forbidden", 403),
@@ -94,11 +94,11 @@ export const fastifyGenericErrorResponsesSchemas = {
 };
 
 export const fastifyGenericErrorResponsesRefs = {
-  400: { $ref: "ERROR_400"},
-  401: { $ref: "ERROR_401"},
-  403: { $ref: "ERROR_403"},
-  405: { $ref: "ERROR_405"},
-  500: { $ref: "ERROR_500"},
+  400: { $ref: "ERROR_400" },
+  401: { $ref: "ERROR_401" },
+  403: { $ref: "ERROR_403" },
+  405: { $ref: "ERROR_405" },
+  500: { $ref: "ERROR_500" },
 };
 
 export function handleRouteError(e: unknown, reply: FastifyReply) {

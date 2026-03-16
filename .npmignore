@@ -1,8 +1,11 @@
 src
-.swcrc
 tsconfig.json
 rollup.config.mjs
 *.tgz
 tests
 tsup.config.ts
-fastify-modular.rc.schema.json
+.dev
+.build
+fastify-toab.config.mjs
+docker-compose.yaml
+tsdown.config.ts
