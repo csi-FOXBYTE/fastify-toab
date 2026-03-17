@@ -6,6 +6,7 @@ import { pathToFileURL } from "url";
 import { ServiceRegistry } from "./service.js";
 import { ControllerRegistry } from "./controller.js";
 import { WorkerRegistry } from "./worker.js";
+import { InputOptions, OutputOptions, RolldownPluginOption } from "rolldown";
 
 export type Registries = { serviceRegistry: ServiceRegistry, controllerRegistry: ControllerRegistry, workerRegistry: WorkerRegistry };
 
@@ -18,7 +19,12 @@ export type FastifyToabConfigOptions = {
         spawn?: SpawnOptions;
     };
     rootDir?: string;
-    tsdown?: InlineConfig;
+    rolldown?: {
+        inputObject?: Record<string, string>,
+        plugins?: RolldownPluginOption[],
+        external?: string[],
+        output?: Omit<OutputOptions, "dir" | "format" | "cleanDir" | "strict" | "esModule" | "codeSplitting" | "preserverModules" | "banner">,
+    } & Omit<InputOptions, "input" | "platform">
 }
 
 export async function loadConfig() {

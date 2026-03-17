@@ -9,3 +9,4 @@ tsup.config.ts
 fastify-toab.config.mjs
 docker-compose.yaml
 tsdown.config.ts
+!projectTemplate/

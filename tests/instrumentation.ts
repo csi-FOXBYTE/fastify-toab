@@ -1,5 +1,5 @@
-import { FastifyInstance } from "fastify";
+import { InstrumentationInput } from "@csi-foxbyte/fastify-toab";
 
-export default async function (fastify: FastifyInstance) {
+export default async function (input: InstrumentationInput) {
 
 }

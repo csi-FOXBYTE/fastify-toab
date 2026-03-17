@@ -8,6 +8,7 @@ import {
   WorkerRegistry,
 } from "@csi-foxbyte/fastify-toab";
 import test_test$service from "../test/test.service.js";
+import test_workers_doStuff$worker from "../test/workers/doStuff.worker.js";
 import test_test$controller from "../test/test.controller.js";
 
 let serviceRegistry: ServiceRegistry | null = null;
@@ -25,7 +26,7 @@ export async function getRegistries(dontInitializeWorkers?: boolean) {
   serviceRegistry.register(test_test$service);
 
   workerRegistry = new WorkerRegistry(serviceRegistry);
-
+  await workerRegistry.register(test_workers_doStuff$worker, dontInitializeWorkers);
   workerRegistryRef.current = workerRegistry;
 
   await workerRegistry.resumeQueues();

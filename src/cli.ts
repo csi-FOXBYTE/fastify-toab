@@ -1,5 +1,5 @@
 import { Argument, Command, Option } from "commander";
-import { writeFile, mkdir, readFile } from "fs/promises";
+import { writeFile, mkdir, cp } from "fs/promises";
 import path from "path";
 import { createInternals, createRegistries, createRun } from "./generate/index.js";
 import { capitalize, uncapitalize } from "./helpers.js";
@@ -7,6 +7,8 @@ import { ControllerTemplate, MiddlewareTemplate, SandboxedWorkerTemplate0, Sandb
 import { ChildProcess, spawn } from "child_process";
 import { loadConfig } from "./config.js";
 import { startBuild } from "./build.js";
+import * as p from "@clack/prompts";
+import pc from "picocolors";
 
 const program = new Command();
 
@@ -14,6 +16,77 @@ program
   .name("fastify-toab")
   .description("CLI to create services, workers and controllers easily.")
   .version("0.2.0");
+
+program
+  .command("scaffold")
+  .description("create project boilerplate")
+  .action(async () => {
+    console.clear();
+
+    p.intro(`${pc.bgCyan(pc.black(' create-fastify-toab '))}`);
+
+    const project = await p.group({
+      name: () =>
+        p.text({
+          message: 'Whats the name of your project?',
+          placeholder: 'my-awesome-fastify-toab-app',
+          defaultValue: "my-awesome-fastify-toab-app"
+        }),
+    }, {
+      onCancel: () => {
+        p.cancel('Operation cancelled.');
+        process.exit(0);
+      },
+    })
+
+    const name = project.name;
+    const projectPath = path.resolve(project.name);
+
+    const s = p.spinner();
+    s.start("Copying boilerplate...");
+    await cp(path.join(import.meta.dirname, "projectTemplate"), projectPath, {
+      recursive: true
+    });
+    s.message("Writing package.json...");
+    await writeFile(path.resolve(projectPath, "package.json"), `{
+  "name": "${name}",
+  "version": "0.0.0",
+  "author": "",
+  "dependencies": {
+    "@csi-foxbyte/fastify-toab": "^0.2.0"
+  }
+}`)
+    s.message("Running pnpm install...");
+    await new Promise((resolve, reject) => {
+      const child = spawn("pnpm", ["install"], {
+        stdio: "inherit",
+        detached: false,
+        cwd: projectPath,
+        shell: true,
+      });
+
+      child.on("exit", resolve);
+      child.on("error", (error) => { console.error(error); reject(error); });
+      child.on("close", resolve);
+      child.on("disconnect", resolve);
+    });
+    s.message("Initializing git...");
+    await new Promise((resolve, reject) => {
+      const child = spawn("git", ["init"], {
+        stdio: "inherit",
+        detached: false,
+        cwd: projectPath,
+        shell: true,
+      });
+
+      child.on("exit", resolve);
+      child.on("error", (error) => { console.error(error); reject(error); });
+      child.on("close", resolve);
+      child.on("disconnect", resolve);
+    });
+    s.stop(`Project created in ${pc.green(projectPath)}`);
+    p.outro(`Done! Run ${pc.yellow(`cd ${path.relative(process.cwd(), projectPath)}`)} to start`);
+  });
 
 program
   .command("build")
@@ -46,16 +119,17 @@ program
         });
       }
 
-      console.log();
-
       serverProcessRef.current = spawn(
         'node',
         [
-          path.join(import.meta.dirname, "dev.mjs"),
+          path.join(".dev", "@internals", "run.js"),
         ],
         {
           stdio: "inherit",
-          env: process.env,
+          env: {
+            ...process.env,
+            NODE_ENV: "development",
+          },
           detached: false,
         }
       );
@@ -111,7 +185,7 @@ program
   .command("create")
   .description("create a component")
   .addArgument(
-    new Argument("<component>", "component to create").choices([
+    new Argument("[component]", "component to create").choices([
       "service",
       "controller",
       "worker",
@@ -120,9 +194,9 @@ program
     ])
   )
   .addArgument(
-    new Argument("<nameOrParent>", "component name or worker parent")
+    new Argument("[nameOrParent]", "component name or worker parent")
   )
-  .addArgument(new Argument("<workerName>", "worker name").argOptional())
+  .addArgument(new Argument("[workerName]", "worker name").argOptional())
   .addOption(
     new Option(
       "-w, --workdir <path>",
@@ -130,11 +204,33 @@ program
     )
   )
   .action(async (component, nameOrParent, workerName, options) => {
+    if (!component) component = await p.select({
+      message: "Select a compoent", options: [{
+        label: "service",
+        value: "service",
+      }, {
+        label: "controller",
+        value: "controller",
+      }, {
+        label: "worker",
+        value: "worker",
+      }, {
+        label: "sandboxedWorker",
+        value: "sandboxedWorker",
+      }, {
+        label: "middleware",
+        value: "middleware",
+      }],
+    })
+
+    if (!nameOrParent && component !== "worker" && component !== "sandboxedWorker") nameOrParent = await p.text({ message: `Whats the name of the ${component}?: ` });
+    if (!nameOrParent && (component === "worker" || component === "sandboxedWorker")) nameOrParent = await p.text({ message: `Whats the name of the parent for the worker?: ` })
+
     if (
       (component === "worker" || component === "sandboxedWorker") &&
       !workerName
     )
-      throw new Error("No workerName for worker supplied!");
+      workerName = await p.text({ message: `Whats the name of the worker?: ` })
 
     const config = await loadConfig();
 

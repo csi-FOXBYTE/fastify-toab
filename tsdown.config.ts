@@ -12,9 +12,14 @@ export default defineConfig({
   clean: true,
   exports: true,
   treeshake: true,
-  entry: ["src/cli.ts", "src/index.ts", "src/dev.ts"],
+  entry: ["src/cli.ts", "src/index.ts"],
   publint: true,
+  copy: [
+    {
+      from: "src/projectTemplate", to: "dist",
+    }
+  ],
   deps: {
-    neverBundle: ["fastify", "@sinclair/typebox", "bullmq", "tsdown", "./fastify-toab.config.mjs"],
+    neverBundle: ["fastify", "@sinclair/typebox", "bullmq", "tsdown"],
   }
 });
