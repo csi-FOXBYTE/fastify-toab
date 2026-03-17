@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Fastify from "fastify";
-import { ControllerRegistry, createController } from "../src/controller";
-import { fastifyToab } from "../src/helpers";
-import { ServiceRegistry } from "../src/service";
-import { WorkerRegistry } from "../src/worker";
+import { ControllerRegistry, createController } from "../src/controller.js";
+import { fastifyToab } from "../src/helpers.js";
+import { ServiceRegistry } from "../src/service.js";
+import { WorkerRegistry } from "../src/worker.js";
 import { Type } from "@sinclair/typebox";
 
 async function getRegistries() {

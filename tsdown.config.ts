@@ -20,6 +20,6 @@ export default defineConfig({
     }
   ],
   deps: {
-    neverBundle: ["fastify", "@sinclair/typebox", "bullmq", "tsdown"],
+    neverBundle: ["fastify", "@sinclair/typebox", "bullmq", "tsdown", "typescript"],
   }
 });

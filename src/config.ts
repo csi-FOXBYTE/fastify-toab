@@ -1,12 +1,11 @@
 import { SpawnOptions } from "child_process";
 import type { FastifyInstance, FastifyPluginAsync, FastifyPluginCallback, FastifyRegisterOptions, FastifyListenOptions, FastifyPluginOptions } from "fastify";
 import path from "path";
-import type { InlineConfig } from "tsdown";
-import { pathToFileURL } from "url";
 import { ServiceRegistry } from "./service.js";
 import { ControllerRegistry } from "./controller.js";
 import { WorkerRegistry } from "./worker.js";
 import { InputOptions, OutputOptions, RolldownPluginOption } from "rolldown";
+import { createJiti } from "jiti";
 
 export type Registries = { serviceRegistry: ServiceRegistry, controllerRegistry: ControllerRegistry, workerRegistry: WorkerRegistry };
 
@@ -27,26 +26,26 @@ export type FastifyToabConfigOptions = {
     } & Omit<InputOptions, "input" | "platform">
 }
 
+export type FastifyToabConfigOptionsDefaulted = Awaited<ReturnType<typeof defineConfig>>;
+
 export async function loadConfig() {
-    const configModule = await import(pathToFileURL(path.join(process.cwd(), "./fastify-toab.config.mjs")).href);
+    const jiti = createJiti(import.meta.url);
 
-    const config = configModule.default as FastifyToabConfigOptions;
-
-    return setDefaultsForConfig(config);
+    const configModule = await jiti.import(path.join(process.cwd(), "./fastify-toab.config.ts")) as FastifyToabConfigOptionsDefaulted;
+    return configModule;
 }
-
 
 export function definePlugin<Opt extends FastifyPluginOptions>(plugin: FastifyPluginAsync<Opt, any> | FastifyPluginCallback<Opt>, opts?: FastifyRegisterOptions<Opt>) {
     return [plugin, opts] as const;
 }
 
 export function defineConfig(opts: FastifyToabConfigOptions) {
-    return opts;
-};
-
-export function setDefaultsForConfig(opts: FastifyToabConfigOptions) {
     return {
         rootDir: opts.rootDir ?? "src",
+        workDir: path.join(
+            process.cwd(),
+            opts.rootDir ?? "src",
+        ),
         ...opts,
     }
-}
+};

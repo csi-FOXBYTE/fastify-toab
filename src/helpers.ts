@@ -198,7 +198,7 @@ export const fastifyToab: FastifyPluginAsync<FastifyToabOptions> = async (
                                 tags: [controller.rootPath.substring(1)],
                                 ...(route.body ? { body: route.body } : {}),
                                 ...(route.params ? { params: route.params } : {}),
-                                ...(route.querystring ? { body: route.querystring } : {}),
+                                ...(route.querystring ? { querystring: route.querystring } : {}),
                                 ...(route.headers ? { headers: route.headers } : {}),
                                 response: route.output
                                     ? {
@@ -241,7 +241,7 @@ export const fastifyToab: FastifyPluginAsync<FastifyToabOptions> = async (
 
                                 const result = await route.handler(handlerOpts);
 
-                                if (!result) return reply.raw.end();
+                                if (result === undefined) return reply.raw.end();
 
                                 return result;
                             } catch (e) {

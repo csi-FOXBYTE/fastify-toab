@@ -3,28 +3,50 @@ import fg from "fast-glob";
 import type { FastifyToabConfigOptions } from "./config.js";
 import path from "path";
 
-export async function startBuild(config: FastifyToabConfigOptions, isWatch: boolean, outDir: string, onBuildDone = async () => { }) {
-    const entries = await fg([`${config.rootDir}/@internals/*.ts`, `${config.rootDir}/**/*.sandboxedWorker.ts`, `${config.rootDir}/instrumentation.ts`])
+export async function startBuild(
+    config: FastifyToabConfigOptions,
+    isWatch: boolean,
+    outDir: string,
+    onBuildDone = async () => { },
+) {
+    const entries = await fg([
+        `${config.rootDir}/@internals/*.ts`,
+        `${config.rootDir}/**/*.sandboxedWorker.ts`,
+        `${config.rootDir}/instrumentation.ts`,
+    ]);
 
-    const inputObject = Object.fromEntries(entries.map(file => {
-        const relativePath = path.relative(config.rootDir!, file);
-        const normalizedPath = relativePath.replace(/\\/g, '/');
-        const chunkName = normalizedPath.replace(/\.[^/.]+$/, "");
-        return [chunkName, file];
-    }))
+    const inputObject = Object.fromEntries(
+        entries.map((file) => {
+            const relativePath = path.relative(config.rootDir!, file);
+            const normalizedPath = relativePath.replace(/\\/g, "/");
+            const chunkName = normalizedPath.replace(/\.[^/.]+$/, "");
+            return [chunkName, file];
+        }),
+    );
 
     const inputOptions = {
         ...config.rolldown,
         input: { ...inputObject, ...config.rolldown?.inputObject },
         logLevel: "silent" as const,
         platform: "node",
-        plugins: [...(config.rolldown?.plugins ?? []), {
-            name: "on-build-done-hooke", writeBundle: async () => {
-                await onBuildDone();
-            }
-        }],
-        external: [...(config.rolldown?.external ?? []), "bullmq",
-            "@csi-foxbyte/fastify-toab"]
+        plugins: [
+            ...(config.rolldown?.plugins ?? []),
+            {
+                name: "on-build-done-hooke",
+                writeBundle: async () => {
+                    await onBuildDone();
+                },
+            },
+        ],
+        external: [
+            ...(config.rolldown?.external ?? []),
+            "bullmq",
+            "@bull-board/api",
+            "@bull-board/fastify",
+            "@bull-board/ui",
+            "@fastify/swagger-ui",
+            "@csi-foxbyte/fastify-toab",
+        ],
     } satisfies InputOptions;
 
     const outputOptions = {
@@ -61,7 +83,7 @@ const __dirname = __dirnameFn(__filename);`,
                         return reject(event.error);
                 }
             });
-        })
+        });
     } else {
         const bundle = await rolldown(inputOptions);
 

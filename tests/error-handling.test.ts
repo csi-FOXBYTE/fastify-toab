@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Fastify from "fastify";
-import { ControllerRegistry, createController } from "../src/controller";
-import { GenericRouteError } from "../src/errors";
-import { fastifyToab } from "../src/helpers";
-import { ServiceRegistry } from "../src/service";
-import { WorkerRegistry } from "../src/worker";
+import { ControllerRegistry, createController } from "../src/controller.js";
+import { GenericRouteError } from "../src/errors.js";
+import { fastifyToab } from "../src/helpers.js";
+import { ServiceRegistry } from "../src/service.js";
+import { WorkerRegistry } from "../src/worker.js";
 
 async function getRegistries() {
   const workerRegistryRef: { current: WorkerRegistry | null } = {

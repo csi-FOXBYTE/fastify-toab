@@ -89,6 +89,7 @@ export const fastifyGenericErrorResponsesSchemas: Record<number, TSchema> = {
   400: createErrorResponseOpenAPI("Bad request, input malformed.", 400),
   401: createErrorResponseOpenAPI("Unauthorized", 401),
   403: createErrorResponseOpenAPI("Forbidden", 403),
+  404: createErrorResponseOpenAPI("Not found", 404),
   405: createErrorResponseOpenAPI("Method not allowed", 405),
   500: createErrorResponseOpenAPI("Internal server error", 500),
 };
@@ -97,6 +98,7 @@ export const fastifyGenericErrorResponsesRefs = {
   400: { $ref: "ERROR_400" },
   401: { $ref: "ERROR_401" },
   403: { $ref: "ERROR_403" },
+  404: { $ref: "ERROR_404" },
   405: { $ref: "ERROR_405" },
   500: { $ref: "ERROR_500" },
 };

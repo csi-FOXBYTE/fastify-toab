@@ -1,11 +1,10 @@
 import "dotenv/config";
 import Fastify from "fastify";
-import { loadConfig } from "./config.js";
+import { FastifyToabConfigOptionsDefaulted } from "./config.js";
 import { fastifyToab } from "./helpers.js";
+import { InstrumentationInput } from "./instrumentation.js";
 
-export async function startServer(registriesPath: string, instrumentationPath: string) {
-    const config = await loadConfig();
-
+export async function startServer(registriesPath: string, instrumentationPath: string, config: FastifyToabConfigOptionsDefaulted) {
     const fastify = Fastify({
         logger: process.env.NODE_ENV === "development" ? {
             transport: {
@@ -24,7 +23,7 @@ export async function startServer(registriesPath: string, instrumentationPath: s
 
     const instrumentationModule = await import(instrumentationPath);
 
-    await instrumentationModule.default(fastify, registries);
+    await instrumentationModule.default({ fastify, registries } satisfies InstrumentationInput);
 
     if (config.onPreStart) await config.onPreStart(fastify, registries);
 

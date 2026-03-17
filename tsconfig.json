@@ -11,5 +11,8 @@
         "./src/index.ts"
       ],
     }
-  }
+  },
+  "exclude": [
+    "dist"
+  ]
 }
