@@ -23,6 +23,7 @@ export type HTTPMethods =
 export type HandlerOpts = {
   request: FastifyRequest;
   reply: FastifyReply;
+  path: string;
   body?: unknown;
   params?: unknown;
   querystring?: unknown;
@@ -41,9 +42,15 @@ export type ControllerCtx = {
 };
 
 export interface ControllerC<Context extends MiddlewareContext> {
+  /**
+   * Sets the path prefix for all routes registered on this controller.
+   */
   rootPath: (
     rootPath: `/${string}`
   ) => Pick<ControllerC<Context>, "addRoute" | "finish">;
+  /**
+   * Attaches a middleware to every route declared on this controller.
+   */
   use: <
     NewContext extends MiddlewareContext,
     NextContext extends NewContext
@@ -53,15 +60,19 @@ export interface ControllerC<Context extends MiddlewareContext> {
     ControllerC<MergeMiddlewareContext<Context, NextContext>>,
     "use" | "rootPath"
   >;
-  addRoute: <M extends HTTPMethods>(
+  /**
+   * Starts a typed route definition for the given method and path.
+   */
+  addRoute: <M extends HTTPMethods, Path extends `/${string}`>(
     method: M,
-    path: `/${string}`
+    path: Path
   ) => Omit<
     RouteC<
       M extends "GET" | "HEAD" | "SSE" | "ALL" ? "body" : "",
       unknown,
       unknown,
       unknown,
+      Path,
       unknown,
       Context,
       M,
@@ -76,6 +87,26 @@ export interface ControllerC<Context extends MiddlewareContext> {
   finish: (serviceRegistry: ServiceRegistry) => ControllerCtx;
 }
 
+/**
+ * Creates a controller builder with typed middleware-aware route registration.
+ *
+ * @remarks
+ * If `fastify-toab.globals.d.ts` is present, the controller inherits the context
+ * produced by `globalMiddlewares` automatically.
+ *
+ * @example
+ * ```ts
+ * const userController = createController()
+ *   .rootPath("/user");
+ *
+ * userController
+ *   .addRoute("GET", "/:id")
+ *   .params(Type.Object({ id: Type.String() }))
+ *   .handler(async ({ params }) => {
+ *     return { id: params.id };
+ *   });
+ * ```
+ */
 export function createController<
   Context extends MiddlewareContext = DeclaredGlobalMiddlewareContext
 >(): ControllerC<Context> {
@@ -92,7 +123,10 @@ export function createController<
       return proxy;
     },
     // @ts-expect-error wrong types
-    addRoute<M extends HTTPMethods>(method: M, path: string) {
+    addRoute<M extends HTTPMethods, Path extends `/${string}`>(
+      method: M,
+      path: Path
+    ) {
       if (ctx.routes[method]?.[path])
         throw new Error(
           `${method} Route "${ctx.rootPath}${path}" already registered.`
@@ -111,6 +145,7 @@ export function createController<
         unknown,
         unknown,
         unknown,
+        Path,
         unknown,
         Context,
         M,
@@ -136,14 +171,34 @@ export function createController<
   return routerHandler;
 }
 
+/**
+ * Stores all controllers that should be registered by the TOAB runtime.
+ *
+ * @example
+ * ```ts
+ * const controllerRegistry = new ControllerRegistry(serviceRegistry);
+ * controllerRegistry.register(userController);
+ * ```
+ */
 export class ControllerRegistry {
   controllers = new Map<string, ControllerCtx>();
   private readonly serviceRegistry: ServiceRegistry;
 
+  /**
+   * Creates a controller registry bound to the current service registry.
+   */
   constructor(serviceRegistry: ServiceRegistry) {
     this.serviceRegistry = serviceRegistry;
   }
 
+  /**
+   * Registers a controller so the runtime plugin can expose its routes.
+   *
+   * @example
+   * ```ts
+   * controllerRegistry.register(userController);
+   * ```
+   */
   register(controller: Pick<ControllerC<any>, "finish">) {
     const controllerCtx = controller.finish(this.serviceRegistry);
 

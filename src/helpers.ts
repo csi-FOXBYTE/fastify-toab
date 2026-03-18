@@ -6,7 +6,6 @@ import type {
 } from "fastify";
 import { setRequestContext } from "./context.js";
 import {
-    ControllerCtx,
     ControllerRegistry,
     HandlerOpts,
     HTTPMethods,
@@ -25,10 +24,21 @@ import {
     MiddlewareContext,
 } from "./middleware.js";
 import {
-    FastifyToabRouteErrorContext,
     FastifyToabRouteErrorHandler,
 } from "./routeError.js";
 
+/**
+ * Creates an OpenAPI response schema for Server-Sent Events endpoints.
+ *
+ * @remarks
+ * This is used internally for `SSE` routes and can also be reused when you need
+ * the generated event-stream schema directly.
+ *
+ * @example
+ * ```ts
+ * const schema = SSEOf(Type.Object({ message: Type.String() }));
+ * ```
+ */
 export function SSEOf<T extends TSchema>(
     schema: T,
     example?: unknown
@@ -68,6 +78,16 @@ export type FastifyToabOptions = {
     includeGenericErrorResponses?: boolean;
 };
 
+/**
+ * Default route error handler that renders TOAB's generic error response format.
+ *
+ * @example
+ * ```ts
+ * export default defineConfig({
+ *   onRouteError: genericRouteErrorHandler,
+ * });
+ * ```
+ */
 export const genericRouteErrorHandler: FastifyToabRouteErrorHandler = ({
     error,
     reply,
@@ -145,6 +165,20 @@ function composeMiddlewares(
     };
 }
 
+/**
+ * Fastify plugin that registers all generated TOAB controllers and routes.
+ *
+ * @remarks
+ * Use this if you want to wire the runtime manually instead of relying on the
+ * generated `startServer(...)` entrypoint.
+ *
+ * @example
+ * ```ts
+ * fastify.register(fastifyToab, {
+ *   getRegistries: async () => registries,
+ * });
+ * ```
+ */
 export const fastifyToab: FastifyPluginAsync<FastifyToabOptions> = async (
     fastify,
     {
@@ -382,8 +416,11 @@ async function createHandlerOpts({
     request: FastifyRequest;
     signal: AbortSignal;
 }): Promise<HandlerOpts> {
+    const path = request.url.split("?")[0] ?? request.url;
+
     return {
         ctx,
+        path,
         reply,
         request,
         services: serviceRegistry.resolve(),
@@ -401,10 +438,16 @@ async function createHandlerOpts({
     };
 }
 
+/**
+ * Uppercases the first character of a word.
+ */
 export function capitalize(word: string) {
     return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
+/**
+ * Lowercases the first character of a word.
+ */
 export function uncapitalize(word: string) {
     return word.charAt(0).toLowerCase() + word.slice(1);
 }

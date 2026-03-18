@@ -43,6 +43,19 @@ export type FastifyToabConfigOptions = {
 
 export type FastifyToabConfigOptionsDefaulted = Awaited<ReturnType<typeof defineConfig>>;
 
+/**
+ * Loads `fastify-toab.config.ts` from the current working directory.
+ *
+ * @remarks
+ * This is used by the generated CLI/runtime entrypoints and resolves the config
+ * with `jiti`, so TypeScript configs can be consumed without a separate build step.
+ *
+ * @example
+ * ```ts
+ * const config = await loadConfig();
+ * console.log(config.rootDir);
+ * ```
+ */
 export async function loadConfig() {
     const jiti = createJiti(import.meta.url);
 
@@ -50,10 +63,36 @@ export async function loadConfig() {
     return configModule;
 }
 
+/**
+ * Wraps a Fastify plugin together with its registration options.
+ *
+ * @remarks
+ * Use this inside `defineConfig({ plugins: [...] })` so plugin options stay typed.
+ *
+ * @example
+ * ```ts
+ * definePlugin(swagger, { openapi: { info: { title: "API", version: "1.0.0" } } })
+ * ```
+ */
 export function definePlugin<Opt extends FastifyPluginOptions>(plugin: FastifyPluginAsync<Opt, any> | FastifyPluginCallback<Opt>, opts?: FastifyRegisterOptions<Opt>) {
     return [plugin, opts] as const;
 }
 
+/**
+ * Declares the TOAB runtime configuration for a project.
+ *
+ * @remarks
+ * The returned object is also used for type inference by helpers like
+ * `fastify-toab.globals.d.ts`.
+ *
+ * @example
+ * ```ts
+ * export default defineConfig({
+ *   rootDir: "src",
+ *   globalMiddlewares: [],
+ * });
+ * ```
+ */
 export function defineConfig<const Opt extends FastifyToabConfigOptions>(opts: Opt) {
     return {
         rootDir: opts.rootDir ?? "src",

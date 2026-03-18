@@ -11,11 +11,12 @@
 5. [Controller](#controller)
 6. [Service](#service)
 7. [Middleware](#middleware)
-8. [Worker](#worker)
-9. [Registries](#registries)
-10. [Testing](#testing)
-11. [Contributing](#contributing)
-12. [License](#license)
+8. [Error Handling](#error-handling)
+9. [Worker](#worker)
+10. [Registries](#registries)
+11. [Testing](#testing)
+12. [Contributing](#contributing)
+13. [License](#license)
 
 ---
 
@@ -67,6 +68,7 @@ import { defineConfig, definePlugin } from "@csi-foxbyte/fastify-toab";
 
 export default defineConfig({
   rootDir: "src",
+  globalMiddlewares: [],
   plugins: [
     definePlugin(swagger, {
       openapi: {
@@ -103,12 +105,46 @@ pnpm fastify-toab dev
 Important config fields:
 
 - **plugins**: Fastify plugins to register before TOAB, usually declared with `definePlugin(...)` to preserve option types.
+- **globalMiddlewares**: Middleware chain that runs before controller and route middlewares.
+- **includeGenericErrorResponses**: Adds the built-in generic error schemas to generated OpenAPI responses.
+- **onRouteError**: Central hook for custom route error handling.
+- **logLevel**: Logger level forwarded to the generated runner.
+- **logSerializers**: Custom logger serializers for Fastify/Pino.
+- **prefix**: Route prefix for the registered TOAB plugin.
+- **rolldown**: Advanced bundler overrides for generated builds.
 - **server.fastify**: Options forwarded to `fastify.listen(...)`.
+- **server.spawn**: Spawn options used by the generated runner.
 - **onPreStart**: Runs after `instrumentation.ts` and before TOAB registers configured Fastify plugins.
 - **onReady**: Runs after `fastify.ready()`.
 - **rootDir**: Source root that contains your generated `@internals` files and `instrumentation.ts`.
 
-If you want to register the runtime plugin manually instead of using the generated runner, the package default export is still `fastifyToab`.
+If you want to register the runtime plugin manually instead of using the generated runner, import the named export:
+
+```ts
+import { fastifyToab } from "@csi-foxbyte/fastify-toab";
+```
+
+To make the global middleware context available in `createController()` automatically, add a `fastify-toab.globals.d.ts` file next to your config:
+
+```ts
+import config from "./fastify-toab.config.js";
+
+type GlobalMiddlewares = typeof config extends {
+  globalMiddlewares: infer Middlewares;
+}
+  ? NonNullable<Middlewares>
+  : [];
+
+declare global {
+  interface FastifyToabGlobals {
+    globalMiddlewares: GlobalMiddlewares;
+  }
+}
+
+export {};
+```
+
+With this file in place, the context produced by `globalMiddlewares` is inferred from `fastify-toab.config.ts` and becomes the default `ctx` type for `createController()`.
 
 ## Controller
 
@@ -137,7 +173,68 @@ userController
 ```
 
 Each controller must be exported and registered via the generated registries.
-Middlewares can be attached at controller level via `controller.use(...)` or per route via `addRoute(...).use(...)`. Route middlewares run after global and controller middlewares and extend the handler `ctx` type.
+Supported route methods are `GET`, `HEAD`, `POST`, `DELETE`, `PUT`, `PATCH`, `ALL`, and `SSE`.
+Middlewares can be attached at controller level via `controller.use(...)` or per route via `addRoute(...).use(...)`.
+All middleware levels extend the same handler context and are merged in this order:
+
+- global middlewares from `fastify-toab.config.ts`
+- controller middlewares from `controller.use(...)`
+- route middlewares from `addRoute(...).use(...)`
+
+If multiple middlewares write the same key, the later middleware overrides that key in the resulting `ctx`.
+
+Route handlers receive:
+
+- `request` and `reply`
+- `path`: The matched request path without the querystring
+- `ctx`: The merged context from global, controller, and route middlewares
+- `services`
+- `signal`: Aborts when the client disconnects
+- typed `body`, `params`, `querystring`, and `headers` when schemas are declared
+
+Path params are strict. If a route path contains named params such as `/:id` or `/:id/:postId`, you must declare `.params(Type.Object(...))` before `.handler(...)`.
+
+```ts
+import { createController } from "@csi-foxbyte/fastify-toab";
+import { Type } from "@sinclair/typebox";
+
+const fileController = createController().rootPath("/files");
+
+fileController
+  .addRoute("GET", "/:id")
+  .params(Type.Object({ id: Type.String() }))
+  .handler(async ({ params, path }) => {
+    params.id;
+    path;
+
+    return { id: params.id };
+  });
+
+fileController
+  .addRoute("GET", "/*")
+  .handler(async ({ path }) => {
+    return { path };
+  });
+```
+
+SSE routes use the `SSE` method and return an `AsyncIterable`:
+
+```ts
+import { createController } from "@csi-foxbyte/fastify-toab";
+import { Type } from "@sinclair/typebox";
+
+const eventsController = createController().rootPath("/events");
+
+eventsController
+  .addRoute("SSE", "/stream")
+  .output(Type.Object({ message: Type.String() }))
+  .handler(async function* ({ signal }) {
+    while (!signal.aborted) {
+      yield { message: "ping" };
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  });
+```
 
 ## Service
 
@@ -171,6 +268,26 @@ export function getUserService(deps: ServiceContainer): Promise<UserService> {
 - **InferService**: Type helper to infer the service interface.
 - **ServiceContainer**: Async DI container for accessing services.
 
+Inside request-scoped services you can access the current Fastify request and reply via `getRequestContext()`:
+
+```ts
+import { createService, getRequestContext } from "@csi-foxbyte/fastify-toab";
+
+export const auditService = createService(
+  "audit",
+  async () => {
+    const { request } = getRequestContext();
+
+    return {
+      getRequestId() {
+        return request.id;
+      },
+    };
+  },
+  { scope: "REQUEST" },
+);
+```
+
 ## Middleware
 
 Middleware allows injecting shared context into routes.
@@ -200,6 +317,50 @@ export const authMiddleware = createMiddleware(
 
 - **createMiddleware**: Wraps route handlers to provide shared logic and context.
 - **GenericRouteError**: Optional standardized error shape when you choose to use it.
+- Middlewares can be reused globally in `fastify-toab.config.ts`, on controllers via `.use(...)`, or per route via `.addRoute(...).use(...)`.
+
+Example with all three middleware levels:
+
+```ts
+import { createController, createMiddleware, defineConfig } from "@csi-foxbyte/fastify-toab";
+
+const authMiddleware = createMiddleware(async ({ ctx }, next) => {
+  const nextCtx = { ...ctx, session: { userId: "123" } };
+  await next({ ctx: nextCtx });
+  return nextCtx;
+});
+
+const controllerMiddleware = createMiddleware(async ({ ctx }, next) => {
+  const nextCtx = { ...ctx, canReadUsers: true };
+  await next({ ctx: nextCtx });
+  return nextCtx;
+});
+
+const routeMiddleware = createMiddleware(async ({ ctx }, next) => {
+  const nextCtx = { ...ctx, requestId: crypto.randomUUID() };
+  await next({ ctx: nextCtx });
+  return nextCtx;
+});
+
+export default defineConfig({
+  globalMiddlewares: [authMiddleware],
+});
+
+const userController = createController()
+  .use(controllerMiddleware)
+  .rootPath("/user");
+
+userController
+  .addRoute("GET", "/me")
+  .use(routeMiddleware)
+  .handler(async ({ ctx }) => {
+    ctx.session.userId;
+    ctx.canReadUsers;
+    ctx.requestId;
+
+    return ctx;
+  });
+```
 
 ## Worker
 
@@ -238,6 +399,37 @@ export function getDeleteUserWorkerQueue(deps: QueueContainer) {
 - **job**: Defines job data and return types.
 - **connection**: Configures Redis/BullMQ connection.
 - **processor**: Job handler function.
+
+## Error Handling
+
+TOAB can either rethrow route errors to Fastify or handle them centrally with `onRouteError`.
+
+```ts
+import {
+  defineConfig,
+  genericRouteErrorHandler,
+  type FastifyToabRouteErrorHandler,
+} from "@csi-foxbyte/fastify-toab";
+
+const onRouteError: FastifyToabRouteErrorHandler = async (ctx) => {
+  if (ctx.reply.sent) return;
+
+  return genericRouteErrorHandler(ctx);
+};
+
+export default defineConfig({
+  includeGenericErrorResponses: true,
+  onRouteError,
+});
+```
+
+Available exports for custom error handling:
+
+- `GenericRouteError`
+- `isGenericError`
+- `genericRouteErrorHandler`
+- `FastifyToabRouteErrorContext`
+- `FastifyToabRouteErrorHandler`
 
 ## Registries
 

@@ -16,4 +16,16 @@ testController
     ctx.test;
   });
 
+testController
+  .addRoute("GET", "/")
+  .handler(async ({ path }) => {
+    path;
+  });
+
+testController
+  .addRoute("GET", "/")
+  .handler(async () => {
+
+  })
+
 export default testController;

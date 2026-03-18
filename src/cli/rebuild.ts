@@ -3,6 +3,9 @@ import { createInternals, createRegistries, createRun } from "../generate/index.
 import path from "path";
 import { loadConfig } from "../config.js";
 
+/**
+ * Regenerates the internal registry and runtime entrypoint files for the current project.
+ */
 export async function rebuild() {
     const config = await loadConfig();
 

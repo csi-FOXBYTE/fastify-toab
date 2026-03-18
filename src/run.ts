@@ -4,6 +4,22 @@ import { FastifyToabConfigOptionsDefaulted } from "./config.js";
 import { fastifyToab } from "./helpers.js";
 import { InstrumentationInput } from "./instrumentation.js";
 
+/**
+ * Boots a Fastify server from generated registries, instrumentation, and config.
+ *
+ * @remarks
+ * This is the runtime entrypoint used by generated projects. Most applications
+ * will call this through the generated `src/@internals/run.ts`.
+ *
+ * @example
+ * ```ts
+ * await startServer(
+ *   import.meta.resolve("./@internals/registries.js"),
+ *   import.meta.resolve("./instrumentation.js"),
+ *   config,
+ * );
+ * ```
+ */
 export async function startServer(registriesPath: string, instrumentationPath: string, config: FastifyToabConfigOptionsDefaulted) {
     const fastify = Fastify({
         logger: process.env.NODE_ENV === "development" ? {
@@ -47,6 +63,7 @@ export async function startServer(registriesPath: string, instrumentationPath: s
 
     await fastify.listen({
         port: 5000,
+        host: "0.0.0.0",
         ...config.server?.fastify,
     }).then((f) => fastify.log.info(`Listening on ${f}`));
 }

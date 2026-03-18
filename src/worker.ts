@@ -13,10 +13,16 @@ import {
 import { ServiceContainer, ServiceRegistry } from "./service.js";
 
 export interface WorkerContainer {
+  /**
+   * Resolves a registered worker by queue name.
+   */
   get: WorkerRegistry["getWorker"];
 }
 
 export interface QueueContainer {
+  /**
+   * Resolves a registered queue by name.
+   */
   get: WorkerRegistry["getQueue"];
 }
 
@@ -61,15 +67,35 @@ export interface WorkerCtx<
   job: J; // only type
 }
 
+/**
+ * Registry for queues and workers created from TOAB worker definitions.
+ *
+ * @example
+ * ```ts
+ * const workerRegistry = new WorkerRegistry(serviceRegistry);
+ * await workerRegistry.register(myWorker);
+ * ```
+ */
 export class WorkerRegistry {
   private readonly queues = new Map<string, Queue>();
   private readonly workers = new Map<string, Worker>();
   private readonly serviceRegistry: ServiceRegistry;
 
+  /**
+   * Creates a worker registry backed by the provided service registry.
+   */
   constructor(serviceRegistry: ServiceRegistry) {
     this.serviceRegistry = serviceRegistry;
   }
 
+  /**
+   * Registers a queue and, unless disabled, its worker processor.
+   *
+   * @example
+   * ```ts
+   * await workerRegistry.register(myWorker);
+   * ```
+   */
   async register<
     Q extends Queue<any, any, any, any, any>,
     W extends Worker<any, any, any>,
@@ -192,12 +218,18 @@ export class WorkerRegistry {
     }
   }
 
+  /**
+   * Resumes all queues after startup completed successfully.
+   */
   async resumeQueues() {
     for (const queue of this.queues.values()) {
       await queue.resume();
     }
   }
 
+  /**
+   * Returns a registered queue by name.
+   */
   getQueue<Q extends Queue>(name: string) {
     const queue = this.queues.get(name);
 
@@ -208,6 +240,9 @@ export class WorkerRegistry {
     return queue as Q;
   }
 
+  /**
+   * Returns a registered worker by queue name.
+   */
   getWorker<W extends Worker>(name: string) {
     const worker = this.workers.get(name);
 
@@ -224,6 +259,9 @@ export interface WorkerC<
   J extends Job<any, any, any> | null,
   SJ extends SandboxedJob<any, any> | null
 > {
+  /**
+   * Sets the queue name and optional queue options for this worker.
+   */
   queue: (
     queueName: string,
     queueOptions?: QueueOptions
@@ -231,20 +269,35 @@ export interface WorkerC<
     WorkerC<Omitter | "queue" | "processor", J, SJ>,
     "sandboxedJob" | "job"
   >;
+  /**
+   * Declares a regular BullMQ job type for this worker.
+   */
   job<NewJob extends Job<any, any, any>>(): Omit<
     WorkerC<Omitter | "job" | "sandboxedJob", NewJob, SJ>,
     Omitter | "job" | "sandboxedJob"
   >;
+  /**
+   * Declares a sandboxed BullMQ job type for this worker.
+   */
   sandboxedJob<NewSandboxedJob extends SandboxedJob<any, any>>(): Omit<
     WorkerC<Omitter | "sandboxedJob" | "job", J, NewSandboxedJob>,
     Omitter | "sandboxedJob" | "job"
   >;
+  /**
+   * Sets additional BullMQ worker options.
+   */
   options: (
     options: Omit<WorkerOptions, "connection">
   ) => Omit<WorkerC<Omitter | "options", J, SJ>, Omitter | "options">;
+  /**
+   * Sets the Redis/BullMQ connection used by the queue and worker.
+   */
   connection: (
     connection: ConnectionOptions
   ) => Pick<WorkerC<Omitter | "connection", J, SJ>, "processor">;
+  /**
+   * Finalizes the worker with an in-process or sandboxed processor.
+   */
   processor: J extends Job<infer T, infer R, infer N>
   ? (
     processor: (
@@ -266,6 +319,9 @@ export interface WorkerC<
     url: string | URL
   ) => WorkerCtx<Queue<T, R, string>, Worker<T, R, string>, SJ>
   : never;
+  /**
+   * Declares a repeatable job scheduler on this queue.
+   */
   upsertJobScheduler: J extends Job<infer T, infer _, infer N>
   ? (
     jobSchedulerId: string,
@@ -287,6 +343,9 @@ export interface WorkerC<
     }
   ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
   : never;
+  /**
+   * Registers a persistent BullMQ event listener.
+   */
   on: J extends Job<infer T, infer R, infer N>
   ? <Key extends keyof WorkerListener<T, R, N>>(
     event: Key,
@@ -298,6 +357,9 @@ export interface WorkerC<
     listener: WithOpts<WorkerListener<T, R>[Key]>
   ) => Omit<WorkerC<Omitter, J, SJ>, Omitter>
   : never;
+  /**
+   * Registers a one-time BullMQ event listener.
+   */
   once: J extends Job<infer T, infer R, infer N>
   ? <Key extends keyof WorkerListener<T, R, N>>(
     event: Key,
@@ -311,6 +373,24 @@ export interface WorkerC<
   : never;
 }
 
+/**
+ * Starts a typed worker definition builder.
+ *
+ * @remarks
+ * Use the fluent builder to configure queue name, job type, connection, and
+ * processor before exporting the resulting worker definition.
+ *
+ * @example
+ * ```ts
+ * export const emailWorker = createWorker()
+ *   .queue("email")
+ *   .job<Job<{ to: string }, void>>()
+ *   .connection({ host: "127.0.0.1", port: 6379 })
+ *   .processor(async (job) => {
+ *     console.log(job.data.to);
+ *   });
+ * ```
+ */
 export function createWorker<Omitter extends string = "">(): Pick<
   WorkerC<Omitter, null, null>,
   "queue"

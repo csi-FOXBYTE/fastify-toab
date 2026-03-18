@@ -60,6 +60,22 @@ export type ConfiguredGlobalMiddlewares =
     ? AnyMiddleware[]
     : DeclaredGlobalMiddlewares;
 
+/**
+ * Creates a typed middleware that can enrich the shared route context.
+ *
+ * @remarks
+ * The middleware can be used globally in `fastify-toab.config.ts`, on a controller
+ * via `.use(...)`, or on a single route via `.addRoute(...).use(...)`.
+ *
+ * @example
+ * ```ts
+ * const authMiddleware = createMiddleware(async ({ ctx }, next) => {
+ *   const nextCtx = { ...ctx, session: { userId: "123" } };
+ *   await next({ ctx: nextCtx });
+ *   return nextCtx;
+ * });
+ * ```
+ */
 export function createMiddleware<
   NewContext extends MiddlewareContext,
   NextContext extends NewContext,

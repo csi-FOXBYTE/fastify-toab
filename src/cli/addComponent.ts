@@ -5,6 +5,9 @@ import { createInternals, createRegistries, createRun } from "../generate/index.
 import { capitalize, uncapitalize } from "../helpers.js";
 import { ControllerTemplate, MiddlewareTemplate, SandboxedWorkerTemplate0, SandboxedWorkerTemplate1, ServiceTemplate, TestTemplate, WorkerTemplate } from "../generate/templates.js";
 
+/**
+ * Generates a new component inside the current TOAB project and refreshes internals.
+ */
 export async function addComponent(component: string, nameOrParent: string, workerName: string) {
     const config = await loadConfig();
 

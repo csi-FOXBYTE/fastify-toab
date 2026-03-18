@@ -28,6 +28,9 @@ type Service<T, S extends ServiceScope> = {
   buildTime: ServiceBuildTime;
 };
 export type ServiceContainer = {
+  /**
+   * Resolves a registered service by name.
+   */
   get<T>(name: string): Promise<T>;
 };
 
@@ -43,6 +46,18 @@ const resolveLocalStorage = new AsyncLocalStorage<{
   resolutionStack: Array<{ name: string; scope: ServiceScope }>;
 }>();
 
+/**
+ * Registry and resolver for TOAB services.
+ *
+ * @remarks
+ * Services are resolved lazily and support singleton and request scopes.
+ *
+ * @example
+ * ```ts
+ * const serviceRegistry = new ServiceRegistry(workerRegistryRef);
+ * serviceRegistry.register(userService);
+ * ```
+ */
 export class ServiceRegistry {
   private readonly factories = new Map<
     string,
@@ -55,10 +70,21 @@ export class ServiceRegistry {
   private readonly singletonInstances = new Map<string, any>();
   private readonly workerRegistryRef: { current: WorkerRegistry | null };
 
+  /**
+   * Creates a service registry bound to the current worker registry reference.
+   */
   constructor(workerRegistryRef: { current: WorkerRegistry | null }) {
     this.workerRegistryRef = workerRegistryRef;
   }
 
+  /**
+   * Registers a service definition under its unique name.
+   *
+   * @example
+   * ```ts
+   * serviceRegistry.register(userService);
+   * ```
+   */
   register<T, S extends ServiceScope>({
     name,
     factory,
@@ -71,6 +97,9 @@ export class ServiceRegistry {
     this.factories.set(name, { factory, scope, buildTime });
   }
 
+  /**
+   * Eagerly resolves all services marked with `buildTime: "INSTANT"`.
+   */
   async initializeInstant() {
     for (const [name, { buildTime }] of this.factories.entries()) {
       if (buildTime === "INSTANT") {
@@ -79,6 +108,15 @@ export class ServiceRegistry {
     }
   }
 
+  /**
+   * Creates a dependency container for resolving registered services.
+   *
+   * @example
+   * ```ts
+   * const services = serviceRegistry.resolve();
+ * const userService = await services.get<UserService>("user");
+   * ```
+   */
   resolve(): ServiceContainer {
     const requestScopedInstances = new Map<string, any>();
     const resolving = new Set<string>();
@@ -174,6 +212,24 @@ export class ServiceRegistry {
   }
 }
 
+/**
+ * Declares a service that can later be registered in a {@link ServiceRegistry}.
+ *
+ * @remarks
+ * The returned definition is typically exported from a module and picked up by
+ * generated registries.
+ *
+ * @example
+ * ```ts
+ * export const userService = createService("user", async () => {
+ *   return {
+ *     findById(id: string) {
+ *       return { id };
+ *     },
+ *   };
+ * });
+ * ```
+ */
 export function createService<T, S extends ServiceScope>(
   name: string,
   factory: ServiceFactory<T, S>,

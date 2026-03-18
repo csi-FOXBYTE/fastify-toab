@@ -20,12 +20,30 @@ const errorMap: Record<ErrorStatis, number> = {
 
 const fastifyModularErrorSymbol = Symbol.for("FastifyModularError");
 
+/**
+ * Standardized route error that can be sent directly to the client.
+ *
+ * @remarks
+ * Use this inside middlewares or handlers when you want a stable error shape and
+ * matching status code without writing reply logic manually.
+ *
+ * @example
+ * ```ts
+ * throw new GenericRouteError(
+ *   "UNAUTHORIZED",
+ *   "User must be authenticated",
+ * );
+ * ```
+ */
 export class GenericRouteError<T> extends Error {
   readonly [fastifyModularErrorSymbol] = true;
   readonly code: number;
   readonly payload?: T;
   readonly status: ErrorStatis;
 
+  /**
+   * Creates a typed route error for the given status.
+   */
   constructor(status: ErrorStatis, message: string, payload?: T) {
     super(message);
     this.status = status;
@@ -33,6 +51,9 @@ export class GenericRouteError<T> extends Error {
     this.payload = payload;
   }
 
+  /**
+   * Wraps an existing error while preserving its stack trace.
+   */
   static fromError<T>(
     error: Error,
     status: ErrorStatis,
@@ -46,6 +67,9 @@ export class GenericRouteError<T> extends Error {
     return fastifyError;
   }
 
+  /**
+   * Serializes the error into the response shape used by TOAB.
+   */
   toJSON() {
     return {
       status: this.status,
@@ -57,11 +81,24 @@ export class GenericRouteError<T> extends Error {
     };
   }
 
+  /**
+   * Sends this error to the current Fastify reply.
+   */
   send(reply: FastifyReply) {
     return reply.status(this.code).send(this.toJSON());
   }
 }
 
+/**
+ * Checks whether an unknown error was created via {@link GenericRouteError}.
+ *
+ * @example
+ * ```ts
+ * if (isGenericError(error)) {
+ *   console.error(error.status, error.payload);
+ * }
+ * ```
+ */
 export function isGenericError<T>(
   error: unknown
 ): error is GenericRouteError<T> {
@@ -103,6 +140,21 @@ export const fastifyGenericErrorResponsesRefs = {
   500: { $ref: "ERROR_500" },
 };
 
+/**
+ * Converts arbitrary thrown values into the standard TOAB error response format.
+ *
+ * @remarks
+ * This is the low-level helper used by the default route error handler.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   // route logic
+ * } catch (error) {
+ *   handleRouteError(error, reply);
+ * }
+ * ```
+ */
 export function handleRouteError(e: unknown, reply: FastifyReply) {
   if (isGenericError(e)) {
     e.send(reply);

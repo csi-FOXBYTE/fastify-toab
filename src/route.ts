@@ -27,10 +27,35 @@ export type RouteCtx = {
   ) => Method extends "SSE" ? AsyncIterable<unknown> : Promise<unknown>;
 };
 
+type PathParamNames<Path extends string> =
+  Path extends `${string}:${infer Rest}`
+    ? Rest extends `${infer Param}/${infer Tail}`
+      ? Param | PathParamNames<`/${Tail}`>
+      : Rest
+    : never;
+
+type SchemaKeys<Schema extends TObject> = keyof Schema["properties"] & string;
+
+type MissingPathParams<Path extends string, Params> = Params extends TObject
+  ? Exclude<PathParamNames<Path>, SchemaKeys<Params>>
+  : PathParamNames<Path>;
+
+type ValidatePathParamsSchema<Path extends string, Schema extends TObject> =
+  MissingPathParams<Path, Schema> extends never
+    ? Schema
+    : Schema & {
+        __fastify_toab_path_params_error__: `Missing path params in schema: ${MissingPathParams<Path, Schema>}`;
+      };
+
+type MissingPathParamsHandler<Path extends string, Missing extends string> = (
+  ...args: [`Route path "${Path}" requires .params(...) for: ${Missing}`]
+) => never;
+
 export type RouteHandler<Context, Body, QueryString, Params, Output, Headers> =
   (opts: {
     request: FastifyRequest;
     reply: FastifyReply;
+    path: string;
     ctx: Context;
     services: ServiceContainer;
     querystring: QueryString extends TObject ? Static<QueryString> : void;
@@ -44,6 +69,7 @@ export type SSERouteHandler<Context, QueryString, Params, Output, Headers> =
   (opts: {
     request: FastifyRequest;
     reply: FastifyReply;
+    path: string;
     ctx: Context;
     signal: AbortSignal;
     services: ServiceContainer;
@@ -57,11 +83,15 @@ export interface RouteC<
   Body,
   Output,
   QueryString,
+  Path extends string,
   Params,
   Context extends MiddlewareContext,
   Method extends HTTPMethods,
   Headers,
 > {
+  /**
+   * Declares the request body schema for this route.
+   */
   body: <B extends TSchema>(
     body: B,
   ) => Omit<
@@ -70,6 +100,7 @@ export interface RouteC<
       B,
       Output,
       QueryString,
+      Path,
       Params,
       Context,
       Method,
@@ -77,6 +108,9 @@ export interface RouteC<
     >,
     "body" | Omitter
   >;
+  /**
+   * Declares the request headers schema for this route.
+   */
   headers: <H extends TSchema>(
     headers: H,
   ) => Omit<
@@ -85,6 +119,7 @@ export interface RouteC<
       Body,
       Output,
       QueryString,
+      Path,
       Params,
       Context,
       Method,
@@ -92,6 +127,9 @@ export interface RouteC<
     >,
     "headers" | Omitter
   >;
+  /**
+   * Declares the success response schema for this route.
+   */
   output: <O extends TSchema>(
     output: O,
   ) => Omit<
@@ -100,6 +138,7 @@ export interface RouteC<
       Body,
       O,
       QueryString,
+      Path,
       Params,
       Context,
       Method,
@@ -107,6 +146,9 @@ export interface RouteC<
     >,
     "output" | Omitter
   >;
+  /**
+   * Declares the querystring schema for this route.
+   */
   querystring: <Q extends TObject>(
     querystring: Q,
   ) => Omit<
@@ -115,6 +157,7 @@ export interface RouteC<
       Body,
       Output,
       Q,
+      Path,
       Params,
       Context,
       Method,
@@ -122,6 +165,9 @@ export interface RouteC<
     >,
     "querystring" | Omitter
   >;
+  /**
+   * Attaches a middleware that only runs for this route.
+   */
   use: <
     NewContext extends MiddlewareContext,
     NextContext extends NewContext
@@ -133,6 +179,7 @@ export interface RouteC<
       Body,
       Output,
       QueryString,
+      Path,
       Params,
       MergeMiddlewareContext<Context, NextContext>,
       Method,
@@ -140,20 +187,36 @@ export interface RouteC<
     >,
     Omitter
   >;
-  handler: (
-    fn: Method extends "SSE"
-      ? SSERouteHandler<Context, QueryString, Params, Output, Headers>
-      : RouteHandler<Context, Body, QueryString, Params, Output, Headers>,
-    opts?: RouteShorthandOptions,
-  ) => RouteCtx;
+  /**
+   * Finalizes the route by attaching its handler function.
+   *
+   * @remarks
+   * If the path contains named params, `.params(...)` must be declared before
+   * this method becomes callable.
+   */
+  handler: [MissingPathParams<Path, Params>] extends [never]
+    ? (
+        fn: Method extends "SSE"
+          ? SSERouteHandler<Context, QueryString, Params, Output, Headers>
+          : RouteHandler<Context, Body, QueryString, Params, Output, Headers>,
+        opts?: RouteShorthandOptions,
+      ) => RouteCtx
+    : MissingPathParamsHandler<
+        Path,
+        Extract<MissingPathParams<Path, Params>, string>
+      >;
+  /**
+   * Declares the path params schema for this route.
+   */
   params: <P extends TObject>(
-    params: P,
+    params: ValidatePathParamsSchema<Path, P>,
   ) => Omit<
     RouteC<
       "params" | Omitter,
       Body,
       Output,
       QueryString,
+      Path,
       P,
       Context,
       Method,
@@ -163,11 +226,18 @@ export interface RouteC<
   >;
 }
 
+/**
+ * Internal route builder used by `createController().addRoute(...)`.
+ *
+ * @remarks
+ * Most consumers should start from `createController()` instead of calling this directly.
+ */
 export function createRoute<
   Omitter extends string,
   Body,
   Output,
   QueryString,
+  Path extends string,
   Params,
   Context extends MiddlewareContext,
   Method extends HTTPMethods,
@@ -179,6 +249,7 @@ export function createRoute<
   Body,
   Output,
   QueryString,
+  Path,
   Params,
   Context,
   Method,
@@ -189,6 +260,7 @@ export function createRoute<
     Body,
     Output,
     QueryString,
+    Path,
     Params,
     Context,
     Method,

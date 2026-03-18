@@ -3,6 +3,13 @@ import fg from "fast-glob";
 import type { FastifyToabConfigOptions } from "./config.js";
 import path from "path";
 
+/**
+ * Builds the generated TOAB runtime output with Rolldown.
+ *
+ * @remarks
+ * This powers the CLI build/dev workflow and writes the generated runtime bundle
+ * to the provided output directory.
+ */
 export async function startBuild(
     config: FastifyToabConfigOptions,
     isWatch: boolean,
