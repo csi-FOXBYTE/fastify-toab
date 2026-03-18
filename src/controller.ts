@@ -1,5 +1,11 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { createMiddleware } from "./middleware.js";
+import {
+  AnyMiddleware,
+  createMiddleware,
+  DeclaredGlobalMiddlewareContext,
+  MergeMiddlewareContext,
+  MiddlewareContext,
+} from "./middleware.js";
 import { createRoute, RouteC, RouteCtx } from "./route.js";
 import { ServiceContainer, ServiceRegistry } from "./service.js";
 import { QueueContainer, WorkerContainer } from "./worker.js";
@@ -31,29 +37,22 @@ export type HandlerOpts = {
 export type ControllerCtx = {
   rootPath: string;
   routes: Record<string, Record<string, RouteCtx>>;
-  middlewares: ((
-    opts: {
-      ctx: unknown;
-      request: FastifyRequest;
-      reply: FastifyReply;
-      services: ServiceContainer;
-      workers: WorkerContainer;
-      queues: QueueContainer;
-    },
-    next: (opts: { ctx: unknown }) => Promise<void>
-  ) => Promise<unknown>)[];
+  middlewares: AnyMiddleware[];
 };
 
-export interface ControllerC<Context extends Record<string, unknown>> {
+export interface ControllerC<Context extends MiddlewareContext> {
   rootPath: (
     rootPath: `/${string}`
   ) => Pick<ControllerC<Context>, "addRoute" | "finish">;
   use: <
-    NewContext extends Record<string, unknown>,
+    NewContext extends MiddlewareContext,
     NextContext extends NewContext
   >(
     fn: ReturnType<typeof createMiddleware<NewContext, NextContext, Context>>
-  ) => Pick<ControllerC<NextContext>, "use" | "rootPath">;
+  ) => Pick<
+    ControllerC<MergeMiddlewareContext<Context, NextContext>>,
+    "use" | "rootPath"
+  >;
   addRoute: <M extends HTTPMethods>(
     method: M,
     path: `/${string}`
@@ -78,7 +77,7 @@ export interface ControllerC<Context extends Record<string, unknown>> {
 }
 
 export function createController<
-  Context extends Record<string, unknown> = {}
+  Context extends MiddlewareContext = DeclaredGlobalMiddlewareContext
 >(): ControllerC<Context> {
   const ctx: ControllerCtx = {
     rootPath: "",
@@ -100,6 +99,7 @@ export function createController<
         );
       if (!ctx.routes[method]) ctx.routes[method] = {};
       ctx.routes[method][path] = {
+        middlewares: [],
         // @ts-expect-error wrong type
         handler: async () => {
           throw new Error("Not implemented!");
@@ -119,7 +119,6 @@ export function createController<
     },
     // @ts-expect-error wrong types
     use(fn) {
-      // @ts-expect-error wrong types
       ctx.middlewares.push(fn);
       return proxy;
     },
@@ -145,7 +144,7 @@ export class ControllerRegistry {
     this.serviceRegistry = serviceRegistry;
   }
 
-  register(controller: Pick<ControllerC<{}>, "finish">) {
+  register(controller: Pick<ControllerC<any>, "finish">) {
     const controllerCtx = controller.finish(this.serviceRegistry);
 
     if (this.controllers.has(controllerCtx.rootPath))

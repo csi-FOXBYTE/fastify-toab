@@ -16,16 +16,22 @@ export {
   ServiceRegistry,
   createService,
 } from "./service.js";
-export { createMiddleware } from "./middleware.js";
-import { fastifyToab } from "./helpers.js";
+export {
+  type ConfiguredGlobalMiddlewares,
+  type DeclaredGlobalMiddlewareContext,
+  type DeclaredGlobalMiddlewares,
+  type InferMiddlewareContext,
+  createMiddleware,
+} from "./middleware.js";
 export {
   type FastifyToabOptions,
-  type FastifyToabRouteErrorContext,
-  type FastifyToabRouteErrorHandler,
   fastifyToab,
   genericRouteErrorHandler,
 } from "./helpers.js";
-export default fastifyToab;
+export {
+  type FastifyToabRouteErrorContext,
+  type FastifyToabRouteErrorHandler,
+} from "./routeError.js";
 export { GenericRouteError, isGenericError } from "./errors.js";
 export { getRequestContext, setRequestContext } from "./context.js";
 export { defineConfig, definePlugin, type FastifyToabConfigOptions } from "./config.js";

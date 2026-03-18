@@ -20,6 +20,14 @@ import {
 } from "./errors.js";
 import { Type, TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
+import {
+    AnyMiddleware,
+    MiddlewareContext,
+} from "./middleware.js";
+import {
+    FastifyToabRouteErrorContext,
+    FastifyToabRouteErrorHandler,
+} from "./routeError.js";
 
 export function SSEOf<T extends TSchema>(
     schema: T,
@@ -49,25 +57,13 @@ export function SSEOf<T extends TSchema>(
     } as unknown as TSchema;
 }
 
-export type FastifyToabRouteErrorContext = {
-    error: unknown;
-    fastify: FastifyInstance;
-    composedPath: string;
-    request: FastifyRequest;
-    reply: FastifyReply;
-};
-
-export type FastifyToabRouteErrorHandler = (
-    ctx: FastifyToabRouteErrorContext
-) => Promise<void> | void;
-
 export type FastifyToabOptions = {
     getRegistries: () => Promise<{
         controllerRegistry: ControllerRegistry;
         serviceRegistry: ServiceRegistry;
         workerRegistry: WorkerRegistry;
     }>;
-    globalMiddlewares?: ControllerCtx["middlewares"];
+    globalMiddlewares?: AnyMiddleware[];
     onRouteError?: FastifyToabRouteErrorHandler;
     includeGenericErrorResponses?: boolean;
 };
@@ -112,20 +108,23 @@ async function handleRouteError(
 }
 
 function composeMiddlewares(
-    middlewares: ControllerCtx["middlewares"]
+    middlewares: AnyMiddleware[]
 ): (
-    ctx: unknown,
+    ctx: MiddlewareContext,
     request: FastifyRequest,
     reply: FastifyReply,
     services: ServiceContainer,
     workers: WorkerContainer,
     queues: QueueContainer
-) => Promise<unknown> {
+) => Promise<MiddlewareContext> {
     return async (initialCtx, request, reply, services, workers, queues) => {
         let index = -1;
         let finalCtx = initialCtx;
 
-        const dispatch = async (i: number, ctx: unknown): Promise<void> => {
+        const dispatch = async (
+            i: number,
+            ctx: MiddlewareContext
+        ): Promise<void> => {
             if (i <= index) {
                 throw new Error("next() called multiple times");
             }
@@ -173,20 +172,15 @@ export const fastifyToab: FastifyPluginAsync<FastifyToabOptions> = async (
     await serviceRegistry.initializeInstant();
 
     for (const controller of controllerRegistry.controllers.values()) {
-        let middlewareChain: ReturnType<typeof composeMiddlewares>;
-        try {
-            middlewareChain = composeMiddlewares([
-                ...globalMiddlewares,
-                ...controller.middlewares,
-            ]);
-        } catch (e) {
-            fastify.log.error(e, "Error in middleware chain!");
-            throw e;
-        }
-
         for (const [method, routes] of Object.entries(controller.routes)) {
             for (const [path, route] of Object.entries(routes)) {
                 try {
+                    const middlewareChain = composeMiddlewares([
+                        ...globalMiddlewares,
+                        ...controller.middlewares,
+                        ...route.middlewares,
+                    ]);
+
                     const composedPath = `${controller.rootPath}${path === "/" ? "" : path
                         }`;
                     const payload = [

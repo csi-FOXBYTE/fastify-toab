@@ -31,68 +31,84 @@ pnpm add @csi-foxbyte/fastify-toab
 
 ## Features
 
-* **Typed Controllers & Routes** with built-in OpenAPI support
-* **Service Container** for dependency injection
-* **Middleware** creation with shared context
-* **BullMQ Worker** registration and queue integration
-* **CLI** for scaffolding boilerplate code
+- **Typed Controllers & Routes** with built-in OpenAPI support
+- **Service Container** for dependency injection
+- **Middleware** creation with shared context
+- **BullMQ Worker** registration and queue integration
+- **CLI** for scaffolding boilerplate code
 
 ## Code Generation
 
-Generate a new controller or service:
+Create a new project scaffold:
 
 ```bash
-pnpm fastify-toab create <controller|service> <Name>
+pnpm fastify-toab create
 ```
 
-Generate a new worker under an existing service:
+Add a service, controller, middleware, worker, or sandboxed worker to an existing project:
 
 ```bash
-pnpm fastify-toab create worker <ParentService> <Name>
+pnpm fastify-toab add service User
+pnpm fastify-toab add controller User
+pnpm fastify-toab add middleware Auth
+pnpm fastify-toab add worker User DeleteUser
+pnpm fastify-toab add sandboxedWorker User ExportUser
 ```
 
-Generate a middleware template:
-
-```bash
-pnpm fastify-toab create middleware <Name>
-```
-
-> **Note**: Workers must live under a service component. Create the service first before adding workers.
+> **Note**: Workers are generated under `<service>/workers`.
 
 ## Setup
 
-Register the plugin in your Fastify application:
+Configure TOAB with a `fastify-toab.config.ts` file:
 
 ```ts
-import Fastify from "fastify";
-import fastifyToab, { genericRouteErrorHandler } from "@csi-foxbyte/fastify-toab";
-import { getRegistries } from "./registries.js";
+import swagger from "@fastify/swagger";
+import { defineConfig, definePlugin } from "@csi-foxbyte/fastify-toab";
 
-const fastify = Fastify();
-
-fastify.register(fastifyToab, {
-  getRegistries,
-  // Optional:
-  // globalMiddlewares: [authOrTracingMiddleware],
-  // includeGenericErrorResponses: true,
-  // onRouteError: genericRouteErrorHandler,
+export default defineConfig({
+  rootDir: "src",
+  plugins: [
+    definePlugin(swagger, {
+      openapi: {
+        info: {
+          title: "My API",
+          version: "1.0.0",
+        },
+      },
+    }),
+  ],
+  server: {
+    fastify: {
+      host: "0.0.0.0",
+      port: Number(process.env.PORT ?? 5000),
+    },
+  },
+  onPreStart: async (fastify, registries) => {
+    // register hooks, dashboards, health checks, etc.
+  },
+  onReady: async (fastify, registries) => {
+    fastify.log.info("Server ready");
+  },
 });
-
-(async () => {
-  await fastify.ready();
-
-  await fastify.listen({
-    host: "0.0.0.0",
-    port: Number(process.env.PORT ?? 5000),
-  });
-})();
 ```
 
-* **getRegistries**: Function that returns all registered controllers, services, middleware, and workers (auto-generated).
-* **globalMiddlewares**: Optional middleware list applied to every route in this Fastify instance.
-* **onRouteError**: Optional callback to fully customize route error handling.
-* **includeGenericErrorResponses**: Optional flag to add default GenericRouteError OpenAPI schemas.
-* By default, errors are rethrown to Fastify (no automatic GenericRouteError wrapping).
+Run the generated project:
+
+```bash
+pnpm fastify-toab rebuild
+pnpm fastify-toab build
+pnpm fastify-toab dev
+```
+
+Important config fields:
+
+- **plugins**: Fastify plugins to register before TOAB, usually declared with `definePlugin(...)` to preserve option types.
+- **server.fastify**: Options forwarded to `fastify.listen(...)`.
+- **onPreStart**: Runs after `instrumentation.ts` and before TOAB registers configured Fastify plugins.
+- **onReady**: Runs after `fastify.ready()`.
+- **rootDir**: Source root that contains your generated `@internals` files and `instrumentation.ts`.
+
+If you want to register the runtime plugin manually instead of using the generated runner, the package default export is still `fastifyToab`.
 
 ## Controller
 
@@ -106,13 +122,22 @@ export const userController = createController()
   .use(authMiddleware)
   .rootPath("/user");
 
-userController.addRoute("GET", "/test").handler(async (req, res) => {
-  // req and res are strongly typed based on OpenAPI schemas
-  return { message: "Hallo Welt!" };
-});
+userController
+  .addRoute("GET", "/test")
+  .use(async ({ ctx }, next) => {
+    const nextCtx = { ...ctx, requestId: crypto.randomUUID() };
+
+    await next({ ctx: nextCtx });
+
+    return nextCtx;
+  })
+  .handler(async ({ ctx, request, reply }) => {
+    return { message: "Hallo Welt!", requestId: ctx.requestId };
+  });
 ```
 
 Each controller must be exported and registered via the generated registries.
+Middlewares can be attached at controller level via `controller.use(...)` or per route via `addRoute(...).use(...)`. Route middlewares run after global and controller middlewares and extend the handler `ctx` type.
 
 ## Service
 
@@ -128,21 +153,23 @@ import {
 export const userService = createService("user", async () => {
   // implement your service methods here
   return {
-    getSession: async () => { /* ... */ },
+    getSession: async () => {
+      /* ... */
+    },
     // etc.
   };
 });
 
 export type UserService = InferService<typeof userService>;
 
-export function getUserService(deps: ServiceContainer): UserService {
+export function getUserService(deps: ServiceContainer): Promise<UserService> {
   return deps.get(userService.name);
 }
 ```
 
-* **createService**: Define a new service namespace.
-* **InferService**: Type helper to infer the service interface.
-* **ServiceContainer**: DI container for accessing services.
+- **createService**: Define a new service namespace.
+- **InferService**: Type helper to infer the service interface.
+- **ServiceContainer**: Async DI container for accessing services.
 
 ## Middleware
 
@@ -152,25 +179,27 @@ Middleware allows injecting shared context into routes.
 import { createMiddleware, GenericRouteError } from "@csi-foxbyte/fastify-toab";
 import { getAuthService } from "./auth.service.js";
 
-export const authMiddleware = createMiddleware(async ({ ctx, services }, next) => {
-  const auth = getAuthService(services);
-  const session = await auth.getSession();
+export const authMiddleware = createMiddleware(
+  async ({ ctx, services }, next) => {
+    const auth = await getAuthService(services);
+    const session = await auth.getSession();
 
-  if (!session) {
-    throw new GenericRouteError(
-      "UNAUTHORIZED",
-      "User must be authenticated",
-      { session },
-    );
-  }
+    if (!session) {
+      throw new GenericRouteError(
+        "UNAUTHORIZED",
+        "User must be authenticated",
+        { session },
+      );
+    }
 
-  // extend context with session
-  await next({ ctx: { ...ctx, session } });
-});
+    // extend context with session
+    await next({ ctx: { ...ctx, session } });
+  },
+);
 ```
 
-* **createMiddleware**: Wraps route handlers to provide shared logic and context.
-* **GenericRouteError**: Optional standardized error shape when you choose to use it.
+- **createMiddleware**: Wraps route handlers to provide shared logic and context.
+- **GenericRouteError**: Optional standardized error shape when you choose to use it.
 
 ## Worker
 
@@ -181,14 +210,16 @@ import {
   createWorker,
   QueueContainer,
   WorkerContainer,
-  Job,
 } from "@csi-foxbyte/fastify-toab";
+import { Job } from "bullmq";
 
 export const deleteUserWorker = createWorker()
   .queue("deleteUser-queue")
   .job<Job<{ userId: string }, void>>()
-  .connection({ /* BullMQ connection options */ })
-  .processor(async (job) => {
+  .connection({
+    /* BullMQ connection options */
+  })
+  .processor(async (job, { services, workers, queues }) => {
     // process job.data.userId
     return;
   });
@@ -202,21 +233,38 @@ export function getDeleteUserWorkerQueue(deps: QueueContainer) {
 }
 ```
 
-* **createWorker**: Starts a worker builder.
-* **queue**: Sets the queue name.
-* **job**: Defines job data and return types.
-* **connection**: Configures Redis/BullMQ connection.
-* **processor**: Job handler function.
+- **createWorker**: Starts a worker builder.
+- **queue**: Sets the queue name.
+- **job**: Defines job data and return types.
+- **connection**: Configures Redis/BullMQ connection.
+- **processor**: Job handler function.
 
 ## Registries
 
-Registries are auto-generated indexes of all controllers, services, middleware, and workers. They live in `./src/registries.js` (or `.ts`).
+Registries are auto-generated indexes of your controllers, services, and workers. They are written into `src/@internals/`.
 
 ```bash
 pnpm fastify-toab rebuild
 ```
 
-This command regenerates the registries after creating new artifacts.
+Key generated files:
+
+- `src/@internals/registries.ts`: Creates and caches the service, worker, and controller registries.
+- `src/@internals/index.ts`: Exposes inferred helper types and `get...` accessors for generated services and workers.
+- `src/@internals/run.ts`: Bootstraps `startServer(...)` with your config and instrumentation module.
+
+Your project should also provide an `src/instrumentation.ts` default export:
+
+```ts
+import type { InstrumentationInput } from "@csi-foxbyte/fastify-toab";
+
+export default async function instrumentation({
+  fastify,
+  registries,
+}: InstrumentationInput) {
+  // optional startup wiring
+}
+```
 
 ## Testing
 

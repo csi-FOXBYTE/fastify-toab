@@ -2,12 +2,21 @@ import { SpawnOptions } from "child_process";
 import type { FastifyInstance, FastifyPluginAsync, FastifyPluginCallback, FastifyRegisterOptions, FastifyListenOptions, FastifyPluginOptions } from "fastify";
 import path from "path";
 import { ServiceRegistry } from "./service.js";
-import { ControllerRegistry } from "./controller.js";
 import { WorkerRegistry } from "./worker.js";
 import { InputOptions, OutputOptions, RolldownPluginOption } from "rolldown";
 import { createJiti } from "jiti";
+import { AnyMiddleware } from "./middleware.js";
+import type { LevelWithSilent } from "pino";
+import type { FastifyToabRouteErrorHandler } from "./routeError.js";
 
-export type Registries = { serviceRegistry: ServiceRegistry, controllerRegistry: ControllerRegistry, workerRegistry: WorkerRegistry };
+export type Registries = {
+    serviceRegistry: ServiceRegistry,
+    controllerRegistry: {
+        controllers: Map<string, unknown>;
+        register(controller: { finish(serviceRegistry: ServiceRegistry): unknown }): void;
+    },
+    workerRegistry: WorkerRegistry,
+};
 
 export type FastifyToabConfigOptions = {
     plugins?: (readonly [FastifyPluginAsync | FastifyPluginCallback, FastifyPluginOptions | undefined])[],
@@ -17,7 +26,13 @@ export type FastifyToabConfigOptions = {
         fastify?: FastifyListenOptions;
         spawn?: SpawnOptions;
     };
+    globalMiddlewares?: AnyMiddleware[],
     rootDir?: string;
+    includeGenericErrorResponses?: boolean;
+    onRouteError?: FastifyToabRouteErrorHandler;
+    logLevel?: LevelWithSilent;
+    logSerializers?: Record<string, (value: any) => string>;
+    prefix?: string;
     rolldown?: {
         inputObject?: Record<string, string>,
         plugins?: RolldownPluginOption[],
@@ -39,7 +54,7 @@ export function definePlugin<Opt extends FastifyPluginOptions>(plugin: FastifyPl
     return [plugin, opts] as const;
 }
 
-export function defineConfig(opts: FastifyToabConfigOptions) {
+export function defineConfig<const Opt extends FastifyToabConfigOptions>(opts: Opt) {
     return {
         rootDir: opts.rootDir ?? "src",
         workDir: path.join(

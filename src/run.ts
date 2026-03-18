@@ -33,6 +33,12 @@ export async function startServer(registriesPath: string, instrumentationPath: s
 
     fastify.register(fastifyToab, {
         getRegistries: async () => registries,
+        globalMiddlewares: config.globalMiddlewares,
+        includeGenericErrorResponses: config.includeGenericErrorResponses,
+        onRouteError: config.onRouteError,
+        logLevel: config.logLevel,
+        logSerializers: config.logSerializers,
+        prefix: config.prefix,
     });
 
     await fastify.ready();

@@ -6,6 +6,7 @@ import { fastifyToab } from "../src/helpers.js";
 import { ServiceRegistry } from "../src/service.js";
 import { WorkerRegistry } from "../src/worker.js";
 import { Type } from "@sinclair/typebox";
+import { globalOrderMiddleware } from "./test/global.middleware.js";
 
 async function getRegistries() {
   const workerRegistryRef: { current: WorkerRegistry | null } = {
@@ -46,6 +47,32 @@ async function getRegistries() {
     .handler(async ({ ctx }) => {
       return { order: (ctx as { order?: string[] }).order ?? [] };
     });
+
+  secondController
+    .addRoute("GET", "/route")
+    .use(async ({ ctx }, next) => {
+      const nextCtx = {
+        ...(ctx as Record<string, unknown>),
+        order: [...((ctx as { order?: string[] }).order ?? []), "route"],
+        routeScoped: true,
+      };
+
+      await next({ ctx: nextCtx });
+
+      return nextCtx;
+    })
+    .output(
+      Type.Object({
+        order: Type.Array(Type.String()),
+        routeScoped: Type.Boolean(),
+      })
+    )
+    .handler(async ({ ctx }) => {
+      return {
+        order: ctx.order,
+        routeScoped: ctx.routeScoped,
+      };
+    });
   controllerRegistry.register(secondController);
 
   return { controllerRegistry, serviceRegistry, workerRegistry };
@@ -56,18 +83,7 @@ test("fastifyToab applies global middlewares to all controllers", async () => {
 
   fastify.register(fastifyToab, {
     getRegistries,
-    globalMiddlewares: [
-      async ({ ctx }, next) => {
-        await next({
-          ctx: {
-            ...(ctx as Record<string, unknown>),
-            order: [...((ctx as { order?: string[] }).order ?? []), "global"],
-          },
-        });
-
-        return ctx;
-      },
-    ],
+    globalMiddlewares: [globalOrderMiddleware],
   });
 
   await fastify.ready();
@@ -87,6 +103,17 @@ test("fastifyToab applies global middlewares to all controllers", async () => {
 
   assert.equal(secondResponse.statusCode, 200);
   assert.deepEqual(secondResponse.json().order, ["global", "controller"]);
+
+  const routeResponse = await fastify.inject({
+    method: "GET",
+    url: "/second/route",
+  });
+
+  assert.equal(routeResponse.statusCode, 200);
+  assert.deepEqual(routeResponse.json(), {
+    order: ["global", "controller", "route"],
+    routeScoped: true,
+  });
 
   await fastify.close();
 });

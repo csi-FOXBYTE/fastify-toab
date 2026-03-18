@@ -6,6 +6,12 @@ import type {
   FastifyReply,
 } from "fastify";
 import { HandlerOpts } from "./controller.js";
+import {
+  AnyMiddleware,
+  createMiddleware,
+  MergeMiddlewareContext,
+  MiddlewareContext,
+} from "./middleware.js";
 import { ServiceContainer } from "./service.js";
 
 export type RouteCtx = {
@@ -15,6 +21,7 @@ export type RouteCtx = {
   opts?: RouteShorthandOptions;
   headers?: TSchema;
   params?: TObject;
+  middlewares: AnyMiddleware[];
   handler: <Method extends HTTPMethods>(
     opts: HandlerOpts,
   ) => Method extends "SSE" ? AsyncIterable<unknown> : Promise<unknown>;
@@ -51,7 +58,7 @@ export interface RouteC<
   Output,
   QueryString,
   Params,
-  Context,
+  Context extends MiddlewareContext,
   Method extends HTTPMethods,
   Headers,
 > {
@@ -115,6 +122,24 @@ export interface RouteC<
     >,
     "querystring" | Omitter
   >;
+  use: <
+    NewContext extends MiddlewareContext,
+    NextContext extends NewContext
+  >(
+    fn: ReturnType<typeof createMiddleware<NewContext, NextContext, Context>>
+  ) => Omit<
+    RouteC<
+      Omitter,
+      Body,
+      Output,
+      QueryString,
+      Params,
+      MergeMiddlewareContext<Context, NextContext>,
+      Method,
+      Headers
+    >,
+    Omitter
+  >;
   handler: (
     fn: Method extends "SSE"
       ? SSERouteHandler<Context, QueryString, Params, Output, Headers>
@@ -144,7 +169,7 @@ export function createRoute<
   Output,
   QueryString,
   Params,
-  Context,
+  Context extends MiddlewareContext,
   Method extends HTTPMethods,
   Headers,
 >(
@@ -192,6 +217,11 @@ export function createRoute<
     // @ts-expect-error wrong types
     querystring(querystring) {
       ctx.querystring = querystring;
+      return proxy;
+    },
+    // @ts-expect-error wrong types
+    use(fn) {
+      ctx.middlewares.push(fn);
       return proxy;
     },
     // @ts-expect-error wrong types
