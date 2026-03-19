@@ -1,7 +1,7 @@
 import config from "./fastify-toab.config.js";
 
 type GlobalMiddlewares = typeof config extends {
-  globalMiddlewares: infer Middlewares;
+  globalMiddlewares?: infer Middlewares;
 }
   ? NonNullable<Middlewares>
   : [];

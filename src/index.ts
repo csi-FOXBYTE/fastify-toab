@@ -34,6 +34,20 @@ export {
 } from "./routeError.js";
 export { GenericRouteError, isGenericError } from "./errors.js";
 export { getRequestContext, setRequestContext } from "./context.js";
-export { defineConfig, definePlugin, type FastifyToabConfigOptions } from "./config.js";
+export { defineConfig, definePlugin, loadConfig, resolveConfig } from "./config.js";
 export { startServer } from "./run.js";
-export { type InstrumentationInput } from "./instrumentation.js";
+export type { InstrumentationInput } from "./instrumentation.js";
+export type {
+  FastifyCorsConfigOptions,
+  FastifyCorsOptions,
+  FastifyDynamicSwaggerOptions,
+  FastifyHelmetConfigOptions,
+  FastifyHelmetOptions,
+  FastifyRateLimitConfigOptions,
+  FastifySwaggerConfigOptions,
+  FastifySwaggerUiConfigOptions,
+  FastifySwaggerUiOptions,
+  FastifyToabConfigOptions,
+  FastifyToabConfigOptionsResolved,
+  RateLimitPluginOptions,
+} from "./config.js";

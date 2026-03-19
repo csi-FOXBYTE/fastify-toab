@@ -73,7 +73,7 @@ export type FastifyToabOptions = {
         serviceRegistry: ServiceRegistry;
         workerRegistry: WorkerRegistry;
     }>;
-    globalMiddlewares?: AnyMiddleware[];
+    globalMiddlewares?: readonly AnyMiddleware[];
     onRouteError?: FastifyToabRouteErrorHandler;
     includeGenericErrorResponses?: boolean;
 };
@@ -128,7 +128,7 @@ async function handleRouteError(
 }
 
 function composeMiddlewares(
-    middlewares: AnyMiddleware[]
+    middlewares: readonly AnyMiddleware[]
 ): (
     ctx: MiddlewareContext,
     request: FastifyRequest,
