@@ -51,9 +51,13 @@ export type Registries = {
     workerRegistry: WorkerRegistry,
 };
 
-export type FastifyToabResolveOpts = {
+export type FastifyToabResolveOpts = Readonly<{
     isDev: boolean;
-}
+    name: string;
+    version: string;
+    cwd: string;
+    rootDir: string;
+}>
 
 export type FastifyToabConfigOptions = {
     env: TObject<Record<string, TString | TOptional<TString>>>;
@@ -140,7 +144,7 @@ export async function resolveConfig(
     const name = pkg.name;
     const rootDir = opts.rootDir ?? "src";
 
-    const fastifyOpts = opts.fastify?.({ isDev });
+    const fastifyOpts = opts.fastify?.({ isDev, name, version, rootDir, cwd });
 
     return {
         ...opts,

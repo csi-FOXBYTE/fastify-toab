@@ -1,6 +1,6 @@
 import { InputOptions, OutputOptions, rolldown, watch } from "rolldown";
 import fg from "fast-glob";
-import type { FastifyToabConfigOptions } from "./config.js";
+import type { FastifyToabConfigOptions, FastifyToabConfigOptionsResolved } from "./config.js";
 import path from "path";
 
 /**
@@ -11,7 +11,7 @@ import path from "path";
  * to the provided output directory.
  */
 export async function startBuild(
-    config: FastifyToabConfigOptions,
+    config: FastifyToabConfigOptionsResolved,
     isWatch: boolean,
     outDir: string,
     onBuildDone = async () => { },
