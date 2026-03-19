@@ -77,8 +77,14 @@ export interface WorkerCtx<
  * ```
  */
 export class WorkerRegistry {
-  private readonly queues = new Map<string, Queue>();
-  private readonly workers = new Map<string, Worker>();
+  /**
+   * @internal DO NOT USE THIS DIRECTLY!
+   */
+  readonly queues = new Map<string, Queue>();
+  /**
+   * @internal DO NOT USE THIS DIRECTLY!
+   */
+  readonly workers = new Map<string, Worker>();
   private readonly serviceRegistry: ServiceRegistry;
 
   /**

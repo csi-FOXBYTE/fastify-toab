@@ -16,10 +16,11 @@ export default defineConfig({
   publint: true,
   copy: [
     {
-      from: "src/projectTemplate", to: "dist",
-    }
+      from: "src/projectTemplate",
+      to: "dist",
+    },
   ],
   deps: {
-    neverBundle: ["fastify", "@sinclair/typebox", "bullmq", "tsdown", "typescript"],
-  }
+    onlyBundle: false,
+  },
 });

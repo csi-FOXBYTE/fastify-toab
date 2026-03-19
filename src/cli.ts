@@ -10,6 +10,7 @@ import { addComponent } from "./cli/addComponent.js";
 import { rebuild } from "./cli/rebuild.js";
 import { printHeader } from "./cli/common.js";
 import ts from "typescript";
+import { unwatchFile, watchFile } from "fs";
 
 const program = new Command();
 
@@ -60,7 +61,15 @@ program
   "author": "",
   "dependencies": {
     "@csi-foxbyte/fastify-toab": "^0.2.0",
-    "typescript": "^6.0.0"
+    "typescript": "^5.8.0",
+    "fastify": 
+    "@fastify/cors": "^11.2.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/multipart": "^9.4.0",
+    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/under-pressure": "^9.0.3",
+    "@fastify/swagger": "^9.5.1",
+    "@fastify/swagger-ui": "^5.2.3"
   }
 }`,
     );
@@ -167,6 +176,18 @@ program
 
     let startedOnce = false;
 
+    watchFile(path.join(process.cwd(), ".env"), {
+      interval: 300,
+    }, () => {
+      p.log.info(".env changed, reloading server...")
+
+      startServer();
+    });
+
+    process.on("exit", () => {
+      unwatchFile(path.join(process.cwd(), ".env"));
+    });
+
     async function startServer() {
       console.log(
         `Build complete, ${startedOnce ? "re" : ""}starting server...`,
@@ -214,7 +235,7 @@ program
   .action(async () => {
     await rebuild();
 
-    p.text({ message: "Rebuilt successfully!" });
+    p.log.success("Rebuilt successfully!");
   });
 
 program

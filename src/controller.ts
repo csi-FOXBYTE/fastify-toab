@@ -91,8 +91,8 @@ export interface ControllerC<Context extends MiddlewareContext> {
  * Creates a controller builder with typed middleware-aware route registration.
  *
  * @remarks
- * If `fastify-toab.globals.d.ts` is present, the controller inherits the context
- * produced by `globalMiddlewares` automatically.
+ * If an ambient `.d.ts` file augments `FastifyToabGlobals`, the controller
+ * inherits the context produced by `globalMiddlewares` automatically.
  *
  * @example
  * ```ts

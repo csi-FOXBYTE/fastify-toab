@@ -13,6 +13,10 @@ import type { FastifyToabRouteErrorHandler } from "./routeError.js";
 import type { FastifyCorsOptions as FastifyCorsPluginOptions } from "@fastify/cors";
 import type { FastifyHelmetOptions as FastifyHelmetPluginOptions } from "@fastify/helmet";
 import type { RateLimitPluginOptions as FastifyRateLimitPluginOptions } from "@fastify/rate-limit";
+import { FastifyMultipartOptions } from "@fastify/multipart";
+import { TObject, TOptional, TString } from "@sinclair/typebox";
+import type { FastifyUnderPressureOptions } from "@fastify/under-pressure";
+import { BoardOptions } from "@bull-board/api/typings/app";
 
 type ToggleablePluginOptions<T> = T & { enabled?: boolean };
 
@@ -34,6 +38,9 @@ export type FastifySwaggerUiConfigOptions =
     ToggleablePluginOptions<FastifySwaggerUiOptions>;
 export type FastifyRateLimitConfigOptions =
     ToggleablePluginOptions<RateLimitPluginOptions>;
+export type FastifyMultipartConfigOptions = ToggleablePluginOptions<FastifyMultipartOptions>;
+export type FastifyUnderPressureConfigOptions = ToggleablePluginOptions<FastifyUnderPressureOptions>;
+export type FastifyBullBoardConfigOptions = ToggleablePluginOptions<BoardOptions>;
 
 export type Registries = {
     serviceRegistry: ServiceRegistry,
@@ -44,22 +51,31 @@ export type Registries = {
     workerRegistry: WorkerRegistry,
 };
 
+export type FastifyToabResolveOpts = {
+    isDev: boolean;
+}
+
 export type FastifyToabConfigOptions = {
+    env: TObject<Record<string, TString | TOptional<TString>>>;
     plugins?: ReturnType<typeof definePlugin>[],
     onReady?: (fastify: FastifyInstance, registries: Registries) => Promise<void>;
     onPreStart?: (fastify: FastifyInstance, registries: Registries) => Promise<void>;
-    fastify?: {
+    fastify?: (opts: FastifyToabResolveOpts) => {
         cors?: FastifyCorsConfigOptions;
         helmet?: FastifyHelmetConfigOptions;
         swagger?: FastifySwaggerConfigOptions;
         swaggerUi?: FastifySwaggerUiConfigOptions;
         rateLimit?: FastifyRateLimitConfigOptions;
+        multipart?: FastifyMultipartConfigOptions;
+        underPressure?: FastifyUnderPressureConfigOptions;
+        bullBoard?: FastifyBullBoardConfigOptions;
     };
     server?: {
         fastify?: {
             listen?: FastifyListenOptions;
         }
         spawn?: SpawnOptions;
+        disableWorkers?: boolean;
     };
     globalMiddlewares?: readonly AnyMiddleware[],
     rootDir?: string;
@@ -87,6 +103,7 @@ export interface FastifyToabConfigOptionsResolved extends Omit<FastifyToabConfig
         fastify: {
             listen: FastifyListenOptions;
         };
+        disableWorkers: boolean;
         spawn?: SpawnOptions;
     };
     fastify: {
@@ -95,9 +112,19 @@ export interface FastifyToabConfigOptionsResolved extends Omit<FastifyToabConfig
         swagger: FastifyDynamicSwaggerOptions & { enabled: boolean };
         swaggerUi: FastifySwaggerUiOptions & { enabled: boolean };
         rateLimit: RateLimitPluginOptions & { enabled: boolean };
+        multipart: FastifyMultipartOptions & { enabled: boolean };
+        underPressure: FastifyUnderPressureOptions & { enabled: boolean };
+        bullBoard: Exclude<BoardOptions, "uiBasePath"> & { enabled: boolean, uiBasePath: string };
     };
 }
 
+/**
+ * Normalizes a user config object into the runtime shape used by the generated server.
+ *
+ * @remarks
+ * This applies defaults for built-in Fastify integrations, logger settings, listen
+ * options, and worker startup flags. It does not execute any plugin registration.
+ */
 export async function resolveConfig(
     opts: FastifyToabConfigOptions,
     cwd = process.cwd()
@@ -113,6 +140,8 @@ export async function resolveConfig(
     const name = pkg.name;
     const rootDir = opts.rootDir ?? "src";
 
+    const fastifyOpts = opts.fastify?.({ isDev });
+
     return {
         ...opts,
         logLevel: opts.logLevel ?? (isDev ? "debug" : "info"),
@@ -125,43 +154,58 @@ export async function resolveConfig(
                     ...opts.server?.fastify?.listen,
                 }
             },
+            disableWorkers: opts.server?.disableWorkers ?? false,
             spawn: opts.server?.spawn,
         },
         rootDir,
         workDir: path.join(cwd, rootDir),
         fastify: {
             cors: {
-                enabled: opts.fastify?.cors?.enabled ?? true,
-                origin: opts.fastify?.cors?.origin ?? true,
-                allowedHeaders: opts.fastify?.cors?.allowedHeaders ?? ["Content-Type", "Authorization", "X-Requested-With"],
-                methods: opts.fastify?.cors?.methods ?? ["GET", "PUT", "POST", "DELETE", "PATCH"],
+                enabled: fastifyOpts?.cors?.enabled ?? !isDev,
+                origin: fastifyOpts?.cors?.origin ?? true,
+                allowedHeaders: fastifyOpts?.cors?.allowedHeaders ?? ["Content-Type", "Authorization", "X-Requested-With"],
+                methods: fastifyOpts?.cors?.methods ?? ["GET", "PUT", "POST", "DELETE", "PATCH"],
+            },
+            underPressure: {
+                enabled: fastifyOpts?.underPressure?.enabled ?? true,
+                ...fastifyOpts?.underPressure,
             },
             helmet: {
-                enabled: opts.fastify?.helmet?.enabled ?? true,
-                contentSecurityPolicy: opts.fastify?.helmet?.contentSecurityPolicy ?? (isDev ? false : undefined),
+                enabled: fastifyOpts?.helmet?.enabled ?? true,
+                contentSecurityPolicy: fastifyOpts?.helmet?.contentSecurityPolicy ?? (isDev ? false : undefined),
+                ...fastifyOpts?.helmet,
             },
             swagger: {
-                enabled: opts.fastify?.swagger?.enabled ?? true,
+                enabled: fastifyOpts?.swagger?.enabled ?? isDev,
                 openapi: {
                     info: {
                         title: name,
                         version: version,
-                        ...opts.fastify?.swagger?.openapi?.info,
+                        ...fastifyOpts?.swagger?.openapi?.info,
                     },
-                    ...opts.fastify?.swagger?.openapi,
+                    ...fastifyOpts?.swagger?.openapi,
                 },
             },
             swaggerUi: {
-                enabled: opts.fastify?.swaggerUi?.enabled ?? true,
-                routePrefix: opts.fastify?.swaggerUi?.routePrefix ?? "/docs",
-                ...opts.fastify?.swaggerUi,
+                enabled: fastifyOpts?.swaggerUi?.enabled ?? isDev,
+                routePrefix: fastifyOpts?.swaggerUi?.routePrefix ?? "/docs",
+                ...fastifyOpts?.swaggerUi,
             },
             rateLimit: {
-                enabled: opts.fastify?.rateLimit?.enabled ?? false,
-                max: opts.fastify?.rateLimit?.max ?? 100,
-                timeWindow: opts.fastify?.rateLimit?.timeWindow ?? "1 minute",
-                ...opts.fastify?.rateLimit,
+                enabled: fastifyOpts?.rateLimit?.enabled ?? !isDev,
+                max: fastifyOpts?.rateLimit?.max ?? 100,
+                timeWindow: fastifyOpts?.rateLimit?.timeWindow ?? "1 minute",
+                ...fastifyOpts?.rateLimit,
             },
+            multipart: {
+                enabled: fastifyOpts?.multipart?.enabled ?? true,
+                ...fastifyOpts?.multipart,
+            },
+            bullBoard: {
+                enabled: fastifyOpts?.bullBoard?.enabled ?? isDev,
+                uiBasePath: fastifyOpts?.bullBoard?.uiBasePath ?? "/bullMQ",
+                ...fastifyOpts?.bullBoard,
+            }
         },
     };
 }
@@ -172,6 +216,7 @@ export async function resolveConfig(
  * @remarks
  * This is used by the generated CLI/runtime entrypoints and resolves the config
  * with `jiti`, so TypeScript configs can be consumed without a separate build step.
+ * The loaded config is then normalized through {@link resolveConfig}.
  *
  * @example
  * ```ts
@@ -206,12 +251,14 @@ export function definePlugin<Opt extends FastifyPluginOptions>(plugin: FastifyPl
  * Declares the TOAB runtime configuration for a project.
  *
  * @remarks
- * The returned object is also used for type inference by helpers like
- * `fastify-toab.globals.d.ts`.
+ * The returned object is also used for type inference by ambient helper files,
+ * for example a generated `src/@internals/globals.d.ts` that augments
+ * `FastifyToabGlobals` or `NodeJS.ProcessEnv`.
  *
  * @example
  * ```ts
  * export default defineConfig({
+ *   env: Type.Object({}),
  *   rootDir: "src",
  *   globalMiddlewares: [],
  * });

@@ -11,3 +11,4 @@ startServer(import.meta.resolve("./registries.js"), import.meta.resolve("../inst
     console.error(err);
     process.exit(1)
 });
+

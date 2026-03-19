@@ -36,6 +36,8 @@ pnpm add @csi-foxbyte/fastify-toab
 - **Service Container** for dependency injection
 - **Middleware** creation with shared context
 - **BullMQ Worker** registration and queue integration
+- **Built-in Fastify integrations** for `@fastify/cors`, `@fastify/helmet`, `@fastify/swagger`, `@fastify/swagger-ui`, `@fastify/rate-limit`, `@fastify/multipart`, and `@fastify/under-pressure`
+- **Environment schema validation** against `process.env` before server startup
 - **CLI** for scaffolding boilerplate code
 
 ## Code Generation
@@ -63,26 +65,53 @@ pnpm fastify-toab add sandboxedWorker User ExportUser
 Configure TOAB with a `fastify-toab.config.ts` file:
 
 ```ts
-import swagger from "@fastify/swagger";
-import { defineConfig, definePlugin } from "@csi-foxbyte/fastify-toab";
+import { Type } from "@sinclair/typebox";
+import { defineConfig } from "@csi-foxbyte/fastify-toab";
 
 export default defineConfig({
   rootDir: "src",
+  env: Type.Object({
+    PORT: Type.String({ default: "5000" }),
+    HOST: Type.Optional(Type.String()),
+  }),
   globalMiddlewares: [],
-  plugins: [
-    definePlugin(swagger, {
+  fastify: {
+    cors: {
+      enabled: true,
+    },
+    helmet: {
+      enabled: true,
+    },
+    swagger: {
+      enabled: true,
       openapi: {
         info: {
           title: "My API",
           version: "1.0.0",
         },
       },
-    }),
-  ],
+    },
+    swaggerUi: {
+      enabled: true,
+      routePrefix: "/docs",
+    },
+    rateLimit: {
+      enabled: false,
+    },
+    multipart: {
+      enabled: true,
+    },
+    underPressure: {
+      enabled: true,
+    },
+  },
+  plugins: [],
   server: {
     fastify: {
-      host: "0.0.0.0",
-      port: Number(process.env.PORT ?? 5000),
+      listen: {
+        host: "0.0.0.0",
+        port: Number(process.env.PORT ?? 5000),
+      },
     },
   },
   onPreStart: async (fastify, registries) => {
@@ -104,19 +133,42 @@ pnpm fastify-toab dev
 
 Important config fields:
 
-- **plugins**: Fastify plugins to register before TOAB, usually declared with `definePlugin(...)` to preserve option types.
+- **env**: TypeBox schema used to validate `process.env` before the server starts.
+- **plugins**: Additional Fastify plugins to register before TOAB.
 - **globalMiddlewares**: Middleware chain that runs before controller and route middlewares.
+- **fastify.cors**: Built-in registration for `@fastify/cors`.
+- **fastify.helmet**: Built-in registration for `@fastify/helmet`.
+- **fastify.swagger**: Built-in registration for `@fastify/swagger`.
+- **fastify.swaggerUi**: Built-in registration for `@fastify/swagger-ui`.
+- **fastify.rateLimit**: Built-in registration for `@fastify/rate-limit`.
+- **fastify.multipart**: Built-in registration for `@fastify/multipart`.
+- **fastify.underPressure**: Built-in registration for `@fastify/under-pressure`.
 - **includeGenericErrorResponses**: Adds the built-in generic error schemas to generated OpenAPI responses.
 - **onRouteError**: Central hook for custom route error handling.
 - **logLevel**: Logger level forwarded to the generated runner.
 - **logSerializers**: Custom logger serializers for Fastify/Pino.
 - **prefix**: Route prefix for the registered TOAB plugin.
 - **rolldown**: Advanced bundler overrides for generated builds.
-- **server.fastify**: Options forwarded to `fastify.listen(...)`.
+- **server.fastify.listen**: Options forwarded to `fastify.listen(...)`.
+- **server.disableWorkers**: Starts the app without initializing BullMQ workers.
 - **server.spawn**: Spawn options used by the generated runner.
 - **onPreStart**: Runs after `instrumentation.ts` and before TOAB registers configured Fastify plugins.
 - **onReady**: Runs after `fastify.ready()`.
 - **rootDir**: Source root that contains your generated `@internals` files and `instrumentation.ts`.
+
+Built-in Fastify plugins are registered automatically from the `fastify` section of the config. The current pre-integrated plugins are:
+
+- `@fastify/cors`
+- `@fastify/helmet`
+- `@fastify/swagger`
+- `@fastify/swagger-ui`
+- `@fastify/rate-limit`
+- `@fastify/multipart`
+- `@fastify/under-pressure`
+
+If you register one of these plugins manually again through `plugins`, startup fails intentionally to avoid duplicate registrations.
+
+Environment variables are validated before boot using the TypeBox schema from `config.env`. On validation errors, TOAB prints the failing keys and exits before Fastify starts.
 
 If you want to register the runtime plugin manually instead of using the generated runner, import the named export:
 
@@ -124,27 +176,40 @@ If you want to register the runtime plugin manually instead of using the generat
 import { fastifyToab } from "@csi-foxbyte/fastify-toab";
 ```
 
-To make the global middleware context available in `createController()` automatically, add a `fastify-toab.globals.d.ts` file next to your config:
+To make the global middleware context and environment variables available in types automatically, add an ambient `.d.ts` file that imports your config. For example:
 
 ```ts
+import type { Static, TSchema } from "@sinclair/typebox";
 import config from "./fastify-toab.config.js";
 
 type GlobalMiddlewares = typeof config extends {
-  globalMiddlewares: infer Middlewares;
+  globalMiddlewares?: infer Middlewares;
 }
   ? NonNullable<Middlewares>
   : [];
 
+type EnvSchema = typeof config extends {
+  env: infer Envs extends TSchema;
+}
+  ? Envs
+  : never;
+
+type EnvVariables = Static<EnvSchema>;
+
 declare global {
   interface FastifyToabGlobals {
     globalMiddlewares: GlobalMiddlewares;
+  }
+
+  namespace NodeJS {
+    interface ProcessEnv extends EnvVariables {}
   }
 }
 
 export {};
 ```
 
-With this file in place, the context produced by `globalMiddlewares` is inferred from `fastify-toab.config.ts` and becomes the default `ctx` type for `createController()`.
+With this file in place, the context produced by `globalMiddlewares` is inferred from `fastify-toab.config.ts` and becomes the default `ctx` type for `createController()`. The same file can also extend `process.env` from your `env` schema.
 
 ## Controller
 
@@ -322,6 +387,7 @@ export const authMiddleware = createMiddleware(
 Example with all three middleware levels:
 
 ```ts
+import { Type } from "@sinclair/typebox";
 import { createController, createMiddleware, defineConfig } from "@csi-foxbyte/fastify-toab";
 
 const authMiddleware = createMiddleware(async ({ ctx }, next) => {
@@ -343,6 +409,7 @@ const routeMiddleware = createMiddleware(async ({ ctx }, next) => {
 });
 
 export default defineConfig({
+  env: Type.Object({}),
   globalMiddlewares: [authMiddleware],
 });
 
@@ -410,6 +477,7 @@ import {
   genericRouteErrorHandler,
   type FastifyToabRouteErrorHandler,
 } from "@csi-foxbyte/fastify-toab";
+import { Type } from "@sinclair/typebox";
 
 const onRouteError: FastifyToabRouteErrorHandler = async (ctx) => {
   if (ctx.reply.sent) return;
@@ -418,6 +486,7 @@ const onRouteError: FastifyToabRouteErrorHandler = async (ctx) => {
 };
 
 export default defineConfig({
+  env: Type.Object({}),
   includeGenericErrorResponses: true,
   onRouteError,
 });

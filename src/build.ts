@@ -48,11 +48,17 @@ export async function startBuild(
         external: [
             ...(config.rolldown?.external ?? []),
             "bullmq",
+            "fastify",
             "@bull-board/api",
             "@bull-board/fastify",
             "@bull-board/ui",
             "@fastify/swagger-ui",
             "@csi-foxbyte/fastify-toab",
+            "@fastify/rate-limit",
+            "@fastify/cors",
+            "@fastify/multipart",
+            "@fastify/under-pressure",
+            "avvio",
         ],
     } satisfies InputOptions;
 
@@ -75,7 +81,6 @@ const __dirname = __dirnameFn(__filename);`,
     if (isWatch) {
         const watcher = watch({
             ...inputOptions,
-            platform: "node",
             output: outputOptions,
         });
 
