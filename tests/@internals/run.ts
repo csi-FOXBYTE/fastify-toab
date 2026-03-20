@@ -6,8 +6,10 @@ import "dotenv/config";
 import { startServer } from "@csi-foxbyte/fastify-toab";
 
 import config from "../../fastify-toab.config.js";
+import { getRegistries } from "./registries.js";
+import instrumentationFn from "../instrumentation.js";
 
-startServer(import.meta.resolve("./registries.js"), import.meta.resolve("../instrumentation.js"), config).catch((err) => {
+startServer(getRegistries, instrumentationFn, config).catch((err) => {
     console.error(err);
     process.exit(1)
 });

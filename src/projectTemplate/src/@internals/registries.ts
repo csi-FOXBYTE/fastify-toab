@@ -4,7 +4,7 @@ let serviceRegistry: ServiceRegistry | null = null;
 let workerRegistry: WorkerRegistry | null = null;
 let controllerRegistry: ControllerRegistry | null = null;
 
-export async function getRegistries() {
+export async function getRegistries(dontInitializeWorkers?: boolean) {
     if (serviceRegistry !== null && workerRegistry !== null && controllerRegistry !== null) return { controllerRegistry, serviceRegistry, workerRegistry };
 
     let workerRegistryRef: { current: WorkerRegistry | null } = {

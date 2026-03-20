@@ -3,3 +3,4 @@ dist
 *.tgz
 .dev
 .build
+.env

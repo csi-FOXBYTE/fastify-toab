@@ -1,4 +1,5 @@
 import type { Static, TSchema } from "@sinclair/typebox";
+import config from "../../fastify-toab.config.ts";
 
 type GlobalMiddlewares = typeof config extends {
     globalMiddlewares: infer Middlewares;

@@ -184,12 +184,22 @@ program
       startServer();
     });
 
+    watchFile(path.join(process.cwd(), "fastify-toab.config.ts"), {
+      interval: 300,
+    }, () => {
+      p.log.info("fastify-toab.config.ts changed, reloading server...")
+
+      startServer();
+    });
+
+
     process.on("exit", () => {
       unwatchFile(path.join(process.cwd(), ".env"));
+      unwatchFile(path.join(process.cwd(), "fastify-toab.config.ts"))
     });
 
     async function startServer() {
-      console.log(
+      p.log.success(
         `Build complete, ${startedOnce ? "re" : ""}starting server...`,
       );
 
@@ -211,6 +221,7 @@ program
           env: {
             ...process.env,
             NODE_ENV: "development",
+            NODE_OPTIONS: "--enable-source-maps"
           },
           detached: false,
         },

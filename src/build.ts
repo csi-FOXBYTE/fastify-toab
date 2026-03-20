@@ -1,6 +1,6 @@
 import { InputOptions, OutputOptions, rolldown, watch } from "rolldown";
 import fg from "fast-glob";
-import type { FastifyToabConfigOptions, FastifyToabConfigOptionsResolved } from "./config.js";
+import type { FastifyToabConfigOptionsResolved } from "./config.js";
 import path from "path";
 
 /**
@@ -17,9 +17,8 @@ export async function startBuild(
     onBuildDone = async () => { },
 ) {
     const entries = await fg([
-        `${config.rootDir}/@internals/*.ts`,
+        `${config.rootDir}/@internals/run.ts`,
         `${config.rootDir}/**/*.sandboxedWorker.ts`,
-        `${config.rootDir}/instrumentation.ts`,
     ]);
 
     const inputObject = Object.fromEntries(
@@ -68,6 +67,7 @@ export async function startBuild(
         format: "esm",
         cleanDir: true,
         minify: true,
+        sourcemap: true,
         strict: true,
         codeSplitting: true,
         esModule: true,

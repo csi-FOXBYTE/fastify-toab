@@ -100,8 +100,8 @@ async function registerBuiltInPlugins(
  * ```
  */
 export async function startServer(
-    registriesPath: string,
-    instrumentationPath: string,
+    getRegistries: (dontInitializeWorkers?: boolean) => Promise<{ serviceRegistry: ServiceRegistry, controllerRegistry: ControllerRegistry, workerRegistry: WorkerRegistry }>,
+    instrumentationFn: (input: InstrumentationInput) => Promise<void>,
     config: FastifyToabConfigOptions
 ) {
     try {
@@ -131,9 +131,8 @@ export async function startServer(
         } : true,
     });
 
-    const registriesModule = await import(registriesPath) as { getRegistries: (dontInitializeWorkers?: boolean) => Promise<{ serviceRegistry: ServiceRegistry, controllerRegistry: ControllerRegistry, workerRegistry: WorkerRegistry }> }
 
-    const registries = await registriesModule.getRegistries(resolvedConfig.server.disableWorkers);
+    const registries = await getRegistries(resolvedConfig.server.disableWorkers);
 
     if (resolvedConfig.fastify.bullBoard.enabled) {
         const serverAdapter = new FastifyAdapter();
@@ -152,9 +151,7 @@ export async function startServer(
         fastify.register(serverAdapter.registerPlugin(), { prefix: "/bullMQ" });
     }
 
-    const instrumentationModule = await import(instrumentationPath);
-
-    await instrumentationModule.default({ fastify, registries } satisfies InstrumentationInput);
+    await instrumentationFn({ fastify, registries });
 
     await registerBuiltInPlugins(fastify, resolvedConfig);
 
@@ -182,5 +179,5 @@ export async function startServer(
 
     if (resolvedConfig.onReady) await resolvedConfig.onReady(fastify, registries);
 
-    await fastify.listen(resolvedConfig.server.fastify.listen).then((f) => fastify.log.info(`Listening on ${f}`));
+    await fastify.listen(resolvedConfig.server.fastify.listen);
 }
